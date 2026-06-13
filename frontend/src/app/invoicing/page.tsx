@@ -11,6 +11,12 @@ import {
   ClipboardList,
 } from "lucide-react";
 
+const DEFAULT_VEHICLES = [
+  { plate: "B 9608 BRV", label: "B 9608 BRV (Truck)" },
+  { plate: "B 2035  PON", label: "B 2035  PON (Xenia Merah)" },
+  { plate: "B 9362 TAQ", label: "B 9362 TAQ (GRANDMAX)" }
+];
+
 export default function InvoicingPage() {
   const { sales, purchasesPT, purchasesNonPT, isMockMode, role } = useAppStore();
   const [activeCenterTab, setActiveCenterTab] = useState<"sales" | "purchases">("sales");
@@ -29,6 +35,13 @@ export default function InvoicingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Vehicle Selection & Customization
+  const [vehicles, setVehicles] = useState<{ plate: string; label: string }[]>(DEFAULT_VEHICLES);
+  const [selectedVehicle, setSelectedVehicle] = useState(DEFAULT_VEHICLES[0].plate);
+  const [customPlate, setCustomPlate] = useState("");
+  const [customLabel, setCustomLabel] = useState("");
+  const [showCustomInput, setShowCustomInput] = useState(false);
 
   // Tab change handler
   const handleTabChange = (tab: "sales" | "purchases") => {
@@ -121,6 +134,64 @@ export default function InvoicingPage() {
     };
     loadPoNumbers();
   }, [isMockMode, role, purchasesPT, purchasesNonPT, activeCenterTab]);
+
+  // Load vehicles from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("sj_vehicles");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setVehicles(parsed);
+            setSelectedVehicle(parsed[0].plate);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, []);
+
+  const handleVehicleChange = (value: string) => {
+    if (value === "__new__") {
+      setShowCustomInput(true);
+      setCustomPlate("");
+      setCustomLabel("");
+    } else {
+      setSelectedVehicle(value);
+      setShowCustomInput(false);
+    }
+  };
+
+  const handleAddCustomVehicle = () => {
+    const plateUpper = customPlate.trim().toUpperCase();
+    const labelTrimmed = customLabel.trim();
+    if (!plateUpper) return;
+
+    const fullLabel = labelTrimmed ? `${plateUpper} (${labelTrimmed})` : plateUpper;
+    
+    // Check if plate already exists in list
+    const exists = vehicles.find((v) => v.plate === plateUpper);
+    let updated = [...vehicles];
+    
+    if (!exists) {
+      const newVehicle = { plate: plateUpper, label: fullLabel };
+      updated = [...vehicles, newVehicle];
+      setVehicles(updated);
+    } else {
+      updated = vehicles.map((v) => v.plate === plateUpper ? { ...v, label: fullLabel } : v);
+      setVehicles(updated);
+    }
+    
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sj_vehicles", JSON.stringify(updated));
+    }
+    setSelectedVehicle(plateUpper);
+    setShowCustomInput(false);
+    setCustomPlate("");
+    setCustomLabel("");
+  };
 
   // Select Invoice handler
   const handleSelectInvoice = async (invoiceNo: string) => {
@@ -221,7 +292,7 @@ export default function InvoicingPage() {
 
   const handlePrintSjTt = () => {
     if (!selectedInvoiceNo) return;
-    window.open(`/sales/print/sj-tt?invoiceNo=${encodeURIComponent(selectedInvoiceNo)}`, "_blank");
+    window.open(`/sales/print/sj-tt?invoiceNo=${encodeURIComponent(selectedInvoiceNo)}&vehicle=${encodeURIComponent(selectedVehicle)}`, "_blank");
   };
 
   const handlePrintPo = () => {
@@ -356,6 +427,69 @@ export default function InvoicingPage() {
                 {/* Document Actions Card */}
                 <div className="border border-border-custom bg-card-bg p-6 rounded-2xl shadow-sm space-y-4">
                   <h3 className="font-bold text-sm text-foreground">Print Options</h3>
+                  
+                  {/* Vehicle selection dropdown */}
+                  <div className="space-y-2 border-b border-border-custom/50 pb-4">
+                    <label className="block text-[11px] font-bold text-slate-400">
+                      Surat Jalan Vehicle / License Plate
+                    </label>
+                    <div className="flex flex-col gap-2.5">
+                      <select
+                        value={showCustomInput ? "__new__" : selectedVehicle}
+                        onChange={(e) => handleVehicleChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                      >
+                        {vehicles.map((v) => (
+                          <option key={v.plate} value={v.plate}>
+                            {v.label}
+                          </option>
+                        ))}
+                        <option value="__new__">+ Add Custom / New Vehicle...</option>
+                      </select>
+                      
+                      {showCustomInput && (
+                        <div className="p-3 border border-border-custom/80 rounded-xl bg-slate-50/55 dark:bg-zinc-900/55 space-y-3">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Add New Vehicle</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              placeholder="Plate (e.g. B 1234 XYZ)"
+                              value={customPlate}
+                              onChange={(e) => setCustomPlate(e.target.value)}
+                              className="px-3 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase font-mono"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Name/Type (e.g. Avanza)"
+                              value={customLabel}
+                              onChange={(e) => setCustomLabel(e.target.value)}
+                              className="px-3 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowCustomInput(false);
+                                setSelectedVehicle(vehicles[0]?.plate || DEFAULT_VEHICLES[0].plate);
+                              }}
+                              className="px-3 py-1.5 border border-border-custom hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleAddCustomVehicle}
+                              className="px-3 py-1.5 bg-primary hover:bg-primary/95 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                            >
+                              Save Vehicle
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Faktur Penjualan Button */}
                     <button

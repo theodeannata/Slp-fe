@@ -40,8 +40,8 @@ export default function Dashboard() {
     message: string;
   }>({ status: null, message: "" });
 
-  const isMaster = role === "master";
-  const isPending = role !== "master" && role !== "admin";
+  const isMaster = role === "master" || role === "db_admin";
+  const isPending = role !== "master" && role !== "admin" && role !== "db_admin";
 
   const totalSales = sales.reduce((acc, curr) => acc + curr.total_include, 0);
   const totalRemaining = sales.reduce((acc, curr) => acc + curr.sisa, 0);

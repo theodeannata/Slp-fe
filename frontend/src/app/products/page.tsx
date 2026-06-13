@@ -229,7 +229,7 @@ export default function ProductsPage() {
         title={selectedProd ? "Edit SKU details" : "Register Product SKU"}
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 Product SKU Code
@@ -258,7 +258,7 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 Kemasan (KG)

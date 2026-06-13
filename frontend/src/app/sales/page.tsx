@@ -1278,7 +1278,7 @@ export default function SalesPage() {
                 <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b border-border-custom pb-1.5">
                   Payment and Balance Details
                 </h4>
-                <div className="grid grid-cols-3 gap-4 text-xs font-bold">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold">
                   <div>
                     <span className="text-slate-400 block font-semibold mb-1">Invoice Grand Total:</span>
                     <span className="text-sm font-black text-foreground">{formatRupiah(viewGrandTotal)}</span>

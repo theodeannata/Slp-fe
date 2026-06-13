@@ -155,7 +155,8 @@ function PrintFakturContent() {
 
   const hasPPN = totalPPN > 0;
 
-  const formatNumber = (num: number) => {
+  const formatNumber = (num: number | null | undefined) => {
+    if (num === null || num === undefined) return "0";
     return num.toLocaleString("id-ID");
   };
 
@@ -379,10 +380,10 @@ function PrintFakturContent() {
               <thead>
                 <tr className="border-b border-black font-bold uppercase" style={{ fontSize: '9.35pt' }}>
                   <th className="py-2 px-1 w-[5%] text-center border-r border-black">No</th>
-                  <th className="py-2 px-2 text-right w-[15%] border-r border-black">JUMLAH (KG)</th>
-                  <th className="py-2 px-4 text-left w-[50%] border-r border-black">NAMA BARANG</th>
-                  <th className="py-2 px-2 text-right w-[15%] border-r border-black">Harga satuan</th>
-                  <th className="py-2 px-2 text-right w-[15%]">TOTAL</th>
+                  <th className="py-2 px-2 text-right w-[13%] border-r border-black">JUMLAH (KG)</th>
+                  <th className="py-2 px-4 text-left w-[42%] border-r border-black">NAMA BARANG</th>
+                  <th className="py-2 px-2 text-right w-[20%] border-r border-black">Harga satuan</th>
+                  <th className="py-2 px-2 text-right w-[20%]">TOTAL</th>
                 </tr>
               </thead>
               <tbody>
@@ -424,8 +425,8 @@ function PrintFakturContent() {
           {/* Spellout (Terbilang) & Totals Section - Align dividers with table columns above */}
           {/* Using flex items-stretch to align vertical lines to table-fixed columns */}
           <div className="flex border-b border-black items-stretch" style={{ fontSize: '9.35pt' }}>
-            {/* Terbilang block - spans exactly 70% width (indented pl-8) */}
-            <div className="w-[70%] border-r border-black p-3 pl-8 flex flex-col justify-between">
+            {/* Terbilang block - spans exactly 60% width (indented pl-8) */}
+            <div className="w-[60%] border-r border-black p-3 pl-8 flex flex-col justify-between">
               <div>
                 <span className="font-bold italic">Terbilang :</span>
                 <p className="italic font-semibold mt-2 lowercase whitespace-normal leading-normal pr-4">
@@ -439,8 +440,8 @@ function PrintFakturContent() {
               )}
             </div>
 
-            {/* Total labels column - 15% width (aligns with Harga Satuan column) */}
-            <div className="w-[15%] border-r border-black py-2 px-2.5 flex flex-col justify-between font-calibri font-normal">
+            {/* Total labels column - 20% width (aligns with Harga Satuan column) */}
+            <div className="w-[20%] border-r border-black py-2 px-2.5 flex flex-col justify-between font-calibri font-normal">
               {hasPPN ? (
                 <>
                   <span>TOTAL (DPP)</span>
@@ -455,8 +456,8 @@ function PrintFakturContent() {
               )}
             </div>
 
-            {/* Total values column - 15% width (aligns with TOTAL column) */}
-            <div className="w-[15%] py-2 px-2.5 flex flex-col justify-between text-right font-mono font-normal">
+            {/* Total values column - 20% width (aligns with TOTAL column) */}
+            <div className="w-[20%] py-2 px-2.5 flex flex-col justify-between text-right font-mono font-normal">
               {hasPPN ? (
                 <>
                   <span>Rp{formatNumber(totalExc)}</span>

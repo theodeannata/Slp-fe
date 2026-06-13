@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAppStore, Purchase } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Table } from "@/components/Table";
@@ -61,6 +62,14 @@ export default function PurchasesPage() {
     setPurchasesPT,
     setPurchasesNonPT,
   } = useAppStore();
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (role === "admin") {
+      router.push("/");
+    }
+  }, [role, router]);
 
   const vendors = Array.from(
     new Set([...purchasesPT.map((p) => p.vendor), ...purchasesNonPT.map((p) => p.vendor)].filter(Boolean))
@@ -546,7 +555,11 @@ export default function PurchasesPage() {
     };
   });
 
-  const sortedGroupedData = [...groupedData].sort((a, b) => new Date(b.tgl_po).getTime() - new Date(a.tgl_po).getTime());
+  const sortedGroupedData = [...groupedData].sort((a, b) => {
+    const timeA = a.tgl_po ? new Date(a.tgl_po).getTime() : 0;
+    const timeB = b.tgl_po ? new Date(b.tgl_po).getTime() : 0;
+    return timeB - timeA;
+  });
 
   const viewPoItems = viewPoNo
     ? (activeTab === "pt" ? purchasesPT : purchasesNonPT)

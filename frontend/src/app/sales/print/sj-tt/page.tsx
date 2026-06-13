@@ -32,11 +32,12 @@ function PrintSjContent() {
   const [error, setError] = useState<string | null>(null);
 
   // Editable states for customization
+  const vehicleParam = searchParams.get("vehicle");
   const [tglInvoice, setTglInvoice] = useState("");
   const [sjNumber, setSjNumber] = useState("");
   const [invNumber, setInvNumber] = useState("");
   const [customerName, setCustomerName] = useState("");
-  const [licensePlate, setLicensePlate] = useState("B 9608 BRV");
+  const [licensePlate, setLicensePlate] = useState(vehicleParam || "B 9608 BRV");
   
   const [ttYangMenyerahkan, setTtYangMenyerahkan] = useState("Yang Menyerahkan");
   const [ttPenerima, setTtPenerima] = useState("Penerima");
@@ -46,6 +47,12 @@ function PrintSjContent() {
   const [sjPenerima, setSjPenerima] = useState("Penerima");
 
   const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    if (vehicleParam) {
+      setLicensePlate(vehicleParam);
+    }
+  }, [vehicleParam]);
 
   useEffect(() => {
     const loadInvoiceData = async () => {

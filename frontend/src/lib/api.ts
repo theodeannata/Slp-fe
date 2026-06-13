@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient";
-import { useAppStore, Customer, Product, Sale, Purchase, Payment } from "./store";
+import { useAppStore, Customer, Product, Sale, Purchase, Payment, Vendor } from "./store";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -52,7 +52,8 @@ async function fetchFromBackend(endpoint: string, options: RequestInit = {}) {
     throw new Error(errorDetail);
   }
 
-  return response.json();
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
 }
 
 // Mock handler fallback
@@ -97,6 +98,44 @@ async function mockHandler(endpoint: string, options: RequestInit = {}) {
         throw new Error("Access denied: Only Master role can delete customer records.");
       }
       store.deleteCustomer(cleanId);
+      return { success: true };
+    }
+  }
+
+  // Vendors
+  if (endpoint.startsWith("/api/v1/vendors")) {
+    const idParam = endpoint.replace("/api/v1/vendors", "").replace(/^\//, "");
+    const cleanId = idParam.split("?")[0];
+
+    if (method === "GET") {
+      if (cleanId) {
+        const item = store.vendors.find((v) => v.vendor_id === cleanId);
+        if (!item) throw new Error("Vendor not found");
+        return item;
+      }
+      return store.vendors;
+    }
+
+    if (method === "POST") {
+      const body = JSON.parse(options.body as string) as Vendor;
+      if (store.vendors.some((v) => v.vendor_id === body.vendor_id)) {
+        throw new Error(`Vendor ID ${body.vendor_id} already exists`);
+      }
+      store.addVendor(body);
+      return body;
+    }
+
+    if (method === "PUT") {
+      const body = JSON.parse(options.body as string) as Partial<Vendor>;
+      store.updateVendor(cleanId, body);
+      return { ...store.vendors.find((v) => v.vendor_id === cleanId), ...body };
+    }
+
+    if (method === "DELETE") {
+      if (store.role !== "master" && store.role !== "db_admin") {
+        throw new Error("Access denied: Only Master or DB Admin roles can delete vendor records.");
+      }
+      store.deleteVendor(cleanId);
       return { success: true };
     }
   }
@@ -200,80 +239,195 @@ async function mockHandler(endpoint: string, options: RequestInit = {}) {
     }
   }
 
-  // Purchases (Admin blocked module)
+  // Purchases Mock Module
   if (endpoint.startsWith("/api/v1/purchases")) {
-    if (store.role !== "master") {
-      throw new Error("Access denied: Purchase modules are restricted to Master role users only.");
+    const isPT = endpoint.includes("/pt");
+    const idParam = endpoint.replace(isPT ? "/api/v1/purchases/pt" : "/api/v1/purchases/non-pt", "").replace(/^\//, "");
+    const cleanCode = decodeURIComponent(idParam.split("?")[0]);
+
+    const sanitizePurchase = (p: Purchase) => {
+      if (store.role === "admin") {
+        return {
+          ...p,
+          dpp: null,
+          harga: null,
+          total: null,
+          jual: null,
+          total_jual: null,
+          untung: null,
+          persen: null,
+          tgl_bayar: null,
+        };
+      }
+      return p;
+    };
+
+    if (method === "GET") {
+      if (cleanCode && !cleanCode.startsWith("?")) {
+        const item = isPT
+          ? store.purchasesPT.find((p) => p.kode_unik === cleanCode)
+          : store.purchasesNonPT.find((p) => p.kode_unik === cleanCode);
+        if (!item) throw new Error(`${isPT ? "PT" : "Non-PT"} Purchase record not found`);
+        
+        // Embed mock GRNs
+        const grns = store.goodsReceiveNotes.filter((g) => isPT ? g.pembelian_id === cleanCode : g.beli_non_pt_id === cleanCode);
+        const itemWithGrns = { ...item, goods_receive_notes: grns };
+        return sanitizePurchase(itemWithGrns);
+      }
+
+      const urlParams = new URLSearchParams(endpoint.includes("?") ? endpoint.split("?")[1] : "");
+      const year = urlParams.get("year");
+      let list = isPT ? store.purchasesPT : store.purchasesNonPT;
+      if (year) {
+        list = list.filter((p) => p.tgl_po && p.tgl_po.substring(0, 4) === year);
+      }
+
+      // Embed mock GRNs for lists
+      return list.map((item) => {
+        const grns = store.goodsReceiveNotes.filter((g) => isPT ? g.pembelian_id === item.kode_unik : g.beli_non_pt_id === item.kode_unik);
+        return sanitizePurchase({ ...item, goods_receive_notes: grns });
+      });
     }
 
-    if (endpoint.includes("/pt")) {
-      const idParam = endpoint.replace("/api/v1/purchases/pt", "").replace(/^\//, "");
-      const cleanCode = decodeURIComponent(idParam.split("?")[0]);
-
-      if (method === "GET") {
-        if (cleanCode && !cleanCode.startsWith("?")) {
-          const item = store.purchasesPT.find((p) => p.kode_unik === cleanCode);
-          if (!item) throw new Error("PT Purchase record not found");
-          return item;
-        }
-        // Handle mock year filter
-        const urlParams = new URLSearchParams(endpoint.includes("?") ? endpoint.split("?")[1] : "");
-        const year = urlParams.get("year");
-        let list = store.purchasesPT;
-        if (year) {
-          list = list.filter((p) => p.tgl_po && p.tgl_po.substring(0, 4) === year);
-        }
-        return list;
+    if (method === "POST") {
+      if (store.role === "admin") {
+        throw new Error("Access denied: Admin role does not have permission to modify purchase orders.");
       }
-      if (method === "POST") {
-        const body = JSON.parse(options.body as string) as Purchase;
+      const body = JSON.parse(options.body as string) as Purchase;
+      if (isPT) {
         store.addPurchasePT(body);
-        return body;
+      } else {
+        store.addPurchaseNonPT(body);
       }
-      if (method === "PUT") {
-        const body = JSON.parse(options.body as string) as Partial<Purchase>;
-        store.updatePurchasePT(cleanCode, body);
-        return { ...store.purchasesPT.find((p) => p.kode_unik === cleanCode), ...body };
+      return body;
+    }
+
+    if (method === "PUT") {
+      const body = JSON.parse(options.body as string) as Partial<Purchase>;
+      let updateData = { ...body };
+      if (store.role === "admin") {
+        // Only allow operational columns update
+        const allowed = ["tgl_po", "tgl_terima_barang", "qty_terima_kg"];
+        updateData = Object.keys(body)
+          .filter((key) => allowed.includes(key))
+          .reduce((obj, key) => {
+            obj[key] = (body as any)[key];
+            return obj;
+          }, {} as any);
       }
-      if (method === "DELETE") {
-        store.deletePurchasePT(cleanCode);
-        return { success: true };
+      if (isPT) {
+        store.updatePurchasePT(cleanCode, updateData);
+        return { ...store.purchasesPT.find((p) => p.kode_unik === cleanCode), ...updateData };
+      } else {
+        store.updatePurchaseNonPT(cleanCode, updateData);
+        return { ...store.purchasesNonPT.find((p) => p.kode_unik === cleanCode), ...updateData };
       }
     }
 
-    if (endpoint.includes("/non-pt")) {
-      const idParam = endpoint.replace("/api/v1/purchases/non-pt", "").replace(/^\//, "");
-      const cleanCode = decodeURIComponent(idParam.split("?")[0]);
-
-      if (method === "GET") {
-        if (cleanCode && !cleanCode.startsWith("?")) {
-          const item = store.purchasesNonPT.find((p) => p.kode_unik === cleanCode);
-          if (!item) throw new Error("Non-PT Purchase record not found");
-          return item;
-        }
-        // Handle mock year filter
-        const urlParams = new URLSearchParams(endpoint.includes("?") ? endpoint.split("?")[1] : "");
-        const year = urlParams.get("year");
-        let list = store.purchasesNonPT;
-        if (year) {
-          list = list.filter((p) => p.tgl_po && p.tgl_po.substring(0, 4) === year);
-        }
-        return list;
+    if (method === "DELETE") {
+      if (store.role === "admin") {
+        throw new Error("Access denied: Admin role does not have permission to modify purchase orders.");
       }
-      if (method === "POST") {
-        const body = JSON.parse(options.body as string) as Purchase;
-        store.addPurchaseNonPT(body);
-        return body;
-      }
-      if (method === "PUT") {
-        const body = JSON.parse(options.body as string) as Partial<Purchase>;
-        store.updatePurchaseNonPT(cleanCode, body);
-        return { ...store.purchasesNonPT.find((p) => p.kode_unik === cleanCode), ...body };
-      }
-      if (method === "DELETE") {
+      if (isPT) {
+        store.deletePurchasePT(cleanCode);
+      } else {
         store.deletePurchaseNonPT(cleanCode);
-        return { success: true };
       }
+      return { success: true };
+    }
+  }
+
+  // Goods Receive Notes
+  if (endpoint.startsWith("/api/v1/goods-receive-notes")) {
+    const idParam = endpoint.replace("/api/v1/goods-receive-notes", "").replace(/^\//, "");
+    const cleanId = idParam.split("?")[0];
+
+    if (method === "GET") {
+      if (cleanId) {
+        const item = store.goodsReceiveNotes.find((g) => g.id === cleanId);
+        if (!item) throw new Error("Goods Receive Note not found");
+        return item;
+      }
+      // Check query parameter filters
+      const urlParams = new URLSearchParams(endpoint.includes("?") ? endpoint.split("?")[1] : "");
+      const pembelianId = urlParams.get("pembelian_id");
+      const beliNonPtId = urlParams.get("beli_non_pt_id");
+      
+      let list = store.goodsReceiveNotes;
+      if (pembelianId) {
+        list = list.filter((g) => g.pembelian_id === pembelianId);
+      }
+      if (beliNonPtId) {
+        list = list.filter((g) => g.beli_non_pt_id === beliNonPtId);
+      }
+      return list;
+    }
+
+    if (method === "POST") {
+      const body = JSON.parse(options.body as string);
+      
+      // Auto resolve product details in mock mode
+      let kode_barang = null;
+      let barang = null;
+      if (body.pembelian_id) {
+        const parent = store.purchasesPT.find((p) => p.kode_unik === body.pembelian_id);
+        if (parent) {
+          kode_barang = parent.kode_barang;
+          barang = parent.barang;
+        }
+      } else if (body.beli_non_pt_id) {
+        const parent = store.purchasesNonPT.find((p) => p.kode_unik === body.beli_non_pt_id);
+        if (parent) {
+          kode_barang = parent.kode_barang;
+          barang = parent.barang;
+        }
+      }
+
+      const newGrn = {
+        id: `grn-${Math.floor(Math.random() * 100000)}`,
+        pembelian_id: body.pembelian_id || null,
+        beli_non_pt_id: body.beli_non_pt_id || null,
+        kode_barang,
+        barang,
+        tgl_terima: body.tgl_terima,
+        qty_terima_kg: Number(body.qty_terima_kg) || 0,
+        note: body.note || null,
+        created_at: new Date().toISOString(),
+      };
+      store.addGoodsReceiveNote(newGrn);
+      return newGrn;
+    }
+
+    if (method === "PUT") {
+      const body = JSON.parse(options.body as string);
+      
+      // Admin update restrictions check: parent PO references cannot be modified
+      if (store.role === "admin") {
+        const existingGrn = store.goodsReceiveNotes.find((g) => g.id === cleanId);
+        if (existingGrn) {
+          if ((body.pembelian_id && body.pembelian_id !== existingGrn.pembelian_id) ||
+              (body.beli_non_pt_id && body.beli_non_pt_id !== existingGrn.beli_non_pt_id)) {
+            throw new Error("Access denied: Admin role does not have permission to modify reference IDs on Goods Receive Notes.");
+          }
+        }
+      }
+
+      const updateData = {
+        tgl_terima: body.tgl_terima,
+        qty_terima_kg: Number(body.qty_terima_kg),
+        note: body.note,
+      };
+      
+      store.updateGoodsReceiveNote(cleanId, updateData);
+      return { ...store.goodsReceiveNotes.find((g) => g.id === cleanId), ...updateData };
+    }
+
+    if (method === "DELETE") {
+      if (store.role !== "master" && store.role !== "db_admin") {
+        throw new Error("Access denied: Only Master and DB Admin roles have permission to delete Goods Receive Notes.");
+      }
+      store.deleteGoodsReceiveNote(cleanId);
+      return { success: true };
     }
   }
 
@@ -287,11 +441,22 @@ async function mockHandler(endpoint: string, options: RequestInit = {}) {
     }
   }
 
-  // Migrate Ingestion
-  if (endpoint.startsWith("/api/v1/migrate")) {
+  // Users
+  if (endpoint.startsWith("/api/v1/users")) {
+    const idParam = endpoint.replace("/api/v1/users", "").replace(/^\//, "");
+    const cleanId = idParam.split("?")[0];
+
     if (method === "POST") {
-      await store.triggerMigration();
-      return { status: "success", detail: "Excel background data migration triggered" };
+      const body = JSON.parse(options.body as string);
+      return {
+        message: "Mock user created successfully.",
+        user_id: `mock-user-${Math.floor(Math.random() * 10000)}`,
+        email: body.email,
+        role: body.role,
+      };
+    }
+    if (method === "DELETE") {
+      return { success: true };
     }
   }
 
@@ -315,6 +480,24 @@ export const api = {
       }),
     delete: (id: string) =>
       fetchFromBackend(`/api/v1/customers/${id}`, {
+        method: "DELETE",
+      }),
+  },
+  vendors: {
+    list: () => fetchFromBackend("/api/v1/vendors?limit=10000"),
+    get: (id: string) => fetchFromBackend(`/api/v1/vendors/${id}`),
+    create: (data: Vendor) =>
+      fetchFromBackend("/api/v1/vendors", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: Partial<Vendor>) =>
+      fetchFromBackend(`/api/v1/vendors/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      fetchFromBackend(`/api/v1/vendors/${id}`, {
         method: "DELETE",
       }),
   },
@@ -403,10 +586,49 @@ export const api = {
         body: JSON.stringify(data),
       }),
   },
+  goodsReceiveNotes: {
+    list: (pembelianId?: string, beliNonPtId?: string) => {
+      let query = "?limit=10000";
+      if (pembelianId) query += `&pembelian_id=${encodeURIComponent(pembelianId)}`;
+      if (beliNonPtId) query += `&beli_non_pt_id=${encodeURIComponent(beliNonPtId)}`;
+      return fetchFromBackend(`/api/v1/goods-receive-notes${query}`);
+    },
+    get: (id: string) => fetchFromBackend(`/api/v1/goods-receive-notes/${id}`),
+    create: (data: any) =>
+      fetchFromBackend("/api/v1/goods-receive-notes", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: any) =>
+      fetchFromBackend(`/api/v1/goods-receive-notes/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      fetchFromBackend(`/api/v1/goods-receive-notes/${id}`, {
+        method: "DELETE",
+      }),
+  },
   migrate: {
     trigger: () =>
       fetchFromBackend("/api/v1/migrate", {
         method: "POST",
+      }),
+  },
+  users: {
+    create: (data: { email: string; password?: string; role: string }) =>
+      fetchFromBackend("/api/v1/users", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      fetchFromBackend(`/api/v1/users/${id}`, {
+        method: "DELETE",
+      }),
+    changePassword: (id: string, password: string) =>
+      fetchFromBackend(`/api/v1/users/${id}/password`, {
+        method: "PUT",
+        body: JSON.stringify({ password }),
       }),
   },
 };

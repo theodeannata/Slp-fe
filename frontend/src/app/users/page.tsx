@@ -15,14 +15,17 @@ import {
   Loader2,
   RefreshCw,
   UserCheck,
+  UserPlus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { api } from "@/lib/api";
+import { Modal } from "@/components/Modal";
 
 interface UserProfile {
   id: string;
   email: string;
   created_at: string;
-  user_roles: { role: "admin" | "master" } | null;
+  user_roles: { role: "admin" | "master" | "db_admin" } | null;
 }
 
 export default function UserManagement() {
@@ -36,9 +39,99 @@ export default function UserManagement() {
     message: "",
   });
 
+  // User creation states
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"admin" | "master" | "db_admin">("admin");
+  const [submitLoading, setSubmitLoading] = useState(false);
+
+  // User password reset states
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetUserId, setResetUserId] = useState("");
+  const [resetUserEmail, setResetUserEmail] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmail || !newPassword) return;
+
+    setSubmitLoading(true);
+    setFeedback({ status: null, message: "" });
+    try {
+      await api.users.create({
+        email: newEmail,
+        password: newPassword,
+        role: newRole,
+      });
+      setFeedback({
+        status: "success",
+        message: `Account created successfully for ${newEmail} (${newRole}).`,
+      });
+      setModalOpen(false);
+      setNewEmail("");
+      setNewPassword("");
+      setNewRole("admin");
+      await fetchUsers();
+    } catch (err: any) {
+      setFeedback({
+        status: "error",
+        message: err.message || "Failed to create user.",
+      });
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this user account?")) return;
+    setActionLoading(userId);
+    setFeedback({ status: null, message: "" });
+    try {
+      await api.users.delete(userId);
+      setFeedback({
+        status: "success",
+        message: "User account deleted permanently.",
+      });
+      await fetchUsers();
+    } catch (err: any) {
+      setFeedback({
+        status: "error",
+        message: err.message || "Failed to delete user account.",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetUserId || !resetPassword) return;
+
+    setResetLoading(true);
+    setFeedback({ status: null, message: "" });
+    try {
+      await api.users.changePassword(resetUserId, resetPassword);
+      setFeedback({
+        status: "success",
+        message: `Password updated successfully for ${resetUserEmail}.`,
+      });
+      setResetModalOpen(false);
+      setResetPassword("");
+    } catch (err: any) {
+      setFeedback({
+        status: "error",
+        message: err.message || "Failed to update user password.",
+      });
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   // Access Control check
   useEffect(() => {
-    if (role !== "master") {
+    if (role !== "db_admin") {
       router.push("/");
     }
   }, [role, router]);
@@ -46,31 +139,23 @@ export default function UserManagement() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // 1. Fetch profiles
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, email, created_at")
+      // Fetch users directly from user_roles
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id, email, role, created_at")
         .order("created_at", { ascending: false });
 
-      if (profilesError) throw profilesError;
+      if (error) throw error;
 
-      // 2. Fetch user roles
-      const { data: rolesData, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
-
-      if (rolesError) throw rolesError;
-
-      // 3. Join them in memory (bypasses any schema cache delay)
-      const roleMap = new Map((rolesData || []).map((r: any) => [r.user_id, r.role]));
-      const combined = (profilesData || []).map((p: any) => ({
-        id: p.id,
-        email: p.email,
-        created_at: p.created_at,
-        user_roles: roleMap.has(p.id) ? { role: roleMap.get(p.id) as "admin" | "master" } : null,
+      // Map to the UserProfile structure
+      const formatted = (data || []).map((u: any) => ({
+        id: u.user_id,
+        email: u.email || "unknown@slp.id",
+        created_at: u.created_at,
+        user_roles: { role: u.role as "admin" | "master" | "db_admin" },
       }));
 
-      setUsersList(combined);
+      setUsersList(formatted);
     } catch (err: any) {
       setFeedback({
         status: "error",
@@ -85,7 +170,7 @@ export default function UserManagement() {
     fetchUsers();
   }, []);
 
-  const handleUpdateRole = async (userId: string, newRole: "admin" | "master" | null) => {
+  const handleUpdateRole = async (userId: string, newRole: "admin" | "master" | "db_admin" | null) => {
     setActionLoading(userId);
     setFeedback({ status: null, message: "" });
     try {
@@ -125,7 +210,7 @@ export default function UserManagement() {
     }
   };
 
-  if (role !== "master") {
+  if (role !== "db_admin") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -145,14 +230,23 @@ export default function UserManagement() {
             Approve registered accounts and assign system permission levels.
           </p>
         </div>
-        <button
-          onClick={fetchUsers}
-          disabled={loading}
-          className="self-start sm:self-center px-3 py-1.5 rounded-xl border border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-          <span>Refresh Users</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <button
+            onClick={() => setModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-background font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Create User</span>
+          </button>
+          <button
+            onClick={fetchUsers}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-xl border border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            <span>Refresh Users</span>
+          </button>
+        </div>
       </div>
 
       {/* Feedback Messages */}
@@ -225,6 +319,12 @@ export default function UserManagement() {
                           })}
                         </td>
                         <td className="py-3.5 px-4">
+                          {activeRole === "db_admin" && (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-500/10 border border-purple-500/20 text-purple-600 inline-flex items-center gap-1">
+                              <Shield className="w-3 h-3 text-purple-550" />
+                              <span>DB Admin Access</span>
+                            </span>
+                          )}
                           {activeRole === "master" && (
                             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-accent-amber inline-flex items-center gap-1">
                               <Shield className="w-3 h-3" />
@@ -271,6 +371,15 @@ export default function UserManagement() {
                                       Make Master
                                     </button>
                                   )}
+                                  {activeRole !== "db_admin" && (
+                                    <button
+                                      onClick={() => handleUpdateRole(usr.id, "db_admin")}
+                                      className="px-2 py-1 rounded-md border border-border-custom hover:border-purple-400 text-slate-650 hover:text-purple-500 bg-card-bg text-[10px] font-semibold transition-colors cursor-pointer"
+                                      title="Approve as DB Admin"
+                                    >
+                                      Make DB Admin
+                                    </button>
+                                  )}
                                   {activeRole !== "pending" && (
                                     <button
                                       onClick={() => handleUpdateRole(usr.id, null)}
@@ -280,6 +389,25 @@ export default function UserManagement() {
                                       Revoke Access
                                     </button>
                                   )}
+                                  <button
+                                    onClick={() => {
+                                      setResetUserId(usr.id);
+                                      setResetUserEmail(usr.email);
+                                      setResetPassword("");
+                                      setResetModalOpen(true);
+                                    }}
+                                    className="px-2 py-1 rounded-md border border-border-custom hover:border-foreground hover:bg-slate-50 dark:hover:bg-zinc-900 text-slate-650 dark:text-slate-300 bg-card-bg text-[10px] font-semibold transition-colors cursor-pointer"
+                                    title="Change Password"
+                                  >
+                                    Password
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteUser(usr.id)}
+                                    className="p-1 rounded-md border border-red-500/10 hover:border-red-500 text-slate-400 hover:text-red-500 bg-card-bg transition-colors cursor-pointer"
+                                    title="Delete User Permanently"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
                                 </>
                               )}
                             </div>
@@ -309,9 +437,154 @@ export default function UserManagement() {
           <span>System Manager Controls</span>
         </p>
         <p>• <strong>Make Admin</strong>: Enables customer registry creation, product listing, and sales invoices. Purchases & matching ledger details remain locked.</p>
-        <p>• <strong>Make Master</strong>: Full CRUD permissions, commission matching, data ingestion capabilities, and manager administration.</p>
+        <p>• <strong>Make Master</strong>: Full CRUD permissions, PO matching, data ingestion capabilities, and manager administration.</p>
+        <p>• <strong>Make DB Admin</strong>: Highest role. Manage roles for other accounts.</p>
         <p>• <strong>Revoke Access</strong>: Instantly removes database-level roles, blocking table reads/writes and presenting the "Pending Activation" state.</p>
       </div>
+
+      {/* Create User Modal */}
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Create New Account" maxWidth="max-w-md">
+        <form onSubmit={handleCreateUser} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-foreground">Email Address</label>
+            <input
+              type="email"
+              required
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="user@company.com"
+              className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-foreground">Password</label>
+            <input
+              type="password"
+              required
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Minimum 6 characters"
+              className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-foreground block">System Permission Role</label>
+            <div className="grid grid-cols-3 gap-2">
+              <label
+                className={`flex flex-col items-center justify-center p-2.5 border rounded-xl cursor-pointer text-center transition-all
+                  ${
+                    newRole === "admin"
+                      ? "border-primary bg-primary-light text-primary"
+                      : "border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-slate-500"
+                  }`}
+              >
+                <input
+                  type="radio"
+                  name="newRole"
+                  value="admin"
+                  checked={newRole === "admin"}
+                  onChange={() => setNewRole("admin")}
+                  className="sr-only"
+                />
+                <span className="font-bold text-[10px] text-foreground">Admin</span>
+              </label>
+
+              <label
+                className={`flex flex-col items-center justify-center p-2.5 border rounded-xl cursor-pointer text-center transition-all
+                  ${
+                    newRole === "master"
+                      ? "border-primary bg-primary-light text-primary"
+                      : "border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-slate-500"
+                  }`}
+              >
+                <input
+                  type="radio"
+                  name="newRole"
+                  value="master"
+                  checked={newRole === "master"}
+                  onChange={() => setNewRole("master")}
+                  className="sr-only"
+                />
+                <span className="font-bold text-[10px] text-foreground">Master</span>
+              </label>
+
+              <label
+                className={`flex flex-col items-center justify-center p-2.5 border rounded-xl cursor-pointer text-center transition-all
+                  ${
+                    newRole === "db_admin"
+                      ? "border-primary bg-primary-light text-primary"
+                      : "border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-slate-500"
+                  }`}
+              >
+                <input
+                  type="radio"
+                  name="newRole"
+                  value="db_admin"
+                  checked={newRole === "db_admin"}
+                  onChange={() => setNewRole("db_admin")}
+                  className="sr-only"
+                />
+                <span className="font-bold text-[10px] text-foreground">DB Admin</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="px-3.5 py-2 rounded-xl border border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground font-semibold text-xs cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitLoading}
+              className="px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-background font-semibold text-xs cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+            >
+              {submitLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+              <span>Create Account</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title={`Change Password for ${resetUserEmail}`} maxWidth="max-w-md">
+        <form onSubmit={handleResetPassword} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-foreground">New Password</label>
+            <input
+              type="password"
+              required
+              value={resetPassword}
+              onChange={(e) => setResetPassword(e.target.value)}
+              placeholder="Minimum 6 characters"
+              className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+            />
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setResetModalOpen(false)}
+              className="px-3.5 py-2 rounded-xl border border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground font-semibold text-xs cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={resetLoading}
+              className="px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-background font-semibold text-xs cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+            >
+              {resetLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+              <span>Update Password</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

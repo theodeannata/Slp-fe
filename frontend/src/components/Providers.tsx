@@ -6,6 +6,8 @@ import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Sidebar from "./Sidebar";
+import { Menu } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
 
 // Create QueryClient
 const queryClient = new QueryClient({
@@ -24,6 +26,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     user,
     theme,
     setCustomers,
+    setVendors,
     setProducts,
     setSales,
     setPayments,
@@ -33,6 +36,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     role,
   } = useAppStore();
   const [mounted, setMounted] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Sync theme class on mount/change
   useEffect(() => {
@@ -48,7 +52,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // Auth Routing Guard
   useEffect(() => {
     if (mounted) {
-      const isPublicPage = pathname === "/login" || pathname === "/register";
+      const isRegisterAllowed = process.env.NEXT_PUBLIC_ALLOW_REGISTRATION === "true";
+      const isPublicPage = pathname === "/login" || (pathname === "/register" && isRegisterAllowed);
+
+      if (pathname === "/register" && !isRegisterAllowed) {
+        router.push("/login");
+        return;
+      }
+
       if (!user && !isPublicPage) {
         router.push("/login");
       } else if (user && isPublicPage) {
@@ -64,18 +75,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     const fetchInitialData = async () => {
       try {
-        const [custs, prods, salesList, paymentsList] = await Promise.all([
+        const [custs, vends, prods, salesList, paymentsList] = await Promise.all([
           api.customers.list(),
+          api.vendors.list(),
           api.products.list(),
           api.sales.list(),
           api.payments.list(),
         ]);
         setCustomers(custs);
+        setVendors(vends);
         setProducts(prods);
         setSales(salesList);
         setPayments(paymentsList);
 
-        if (role === "master") {
+        if (role === "master" || role === "db_admin") {
           const [ptList, nonPtList] = await Promise.all([
             api.purchases.listPT(),
             api.purchases.listNonPT(),
@@ -89,7 +102,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     };
 
     fetchInitialData();
-  }, [user, isMockMode, role, mounted, setCustomers, setProducts, setSales, setPayments, setPurchasesPT, setPurchasesNonPT]);
+  }, [user, isMockMode, role, mounted, setCustomers, setVendors, setProducts, setSales, setPayments, setPurchasesPT, setPurchasesNonPT]);
 
   if (!mounted) {
     // Avoid hydration flashing
@@ -109,10 +122,44 @@ export function Providers({ children }: { children: React.ReactNode }) {
         children
       ) : (
         <div className="flex h-screen overflow-hidden bg-background">
-          <Sidebar />
-          <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-background p-6 lg:p-10 relative">
-            {children}
-          </main>
+          {/* Mobile backdrop */}
+          {mobileSidebarOpen && (
+            <div
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-45 md:hidden"
+              onClick={() => setMobileSidebarOpen(false)}
+            />
+          )}
+
+          <Sidebar mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
+
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {/* Mobile Top Header */}
+            <header className="flex md:hidden items-center justify-between px-6 py-4 bg-sidebar-bg border-b border-sidebar-border z-20">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setMobileSidebarOpen(true)}
+                  className="p-1.5 rounded-lg border border-border-custom hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-2 select-none">
+                  <div className="w-8 h-8 rounded-lg bg-zinc-950 dark:bg-zinc-50 flex items-center justify-center text-zinc-50 dark:text-zinc-950 font-bold text-base border border-zinc-200 dark:border-zinc-800">
+                    S
+                  </div>
+                  <span className="font-bold text-sm text-zinc-900 dark:text-zinc-50 tracking-tight">
+                    SLP ERP
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+              </div>
+            </header>
+
+            <main className="flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-10 relative">
+              {children}
+            </main>
+          </div>
         </div>
       )}
     </QueryClientProvider>

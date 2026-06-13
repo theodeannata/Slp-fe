@@ -40,8 +40,21 @@ export default function Login() {
 
       if (authError) throw authError;
 
-      if (data?.user) {
-        const role = (data.user.user_metadata?.role || "admin") as "admin" | "master";
+      if (data?.user && data.session) {
+        // Fetch role from server-controlled user_roles table, not client-writable user_metadata
+        let role: "admin" | "master" | "db_admin" | "pending" = "pending";
+        try {
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", data.user.id)
+            .single();
+          if (roleData?.role) {
+            role = roleData.role as "admin" | "master" | "db_admin" | "pending";
+          }
+        } catch {
+          // role stays "pending" if lookup fails
+        }
         setAuth(
           { email: data.user.email || email, id: data.user.id },
           role,
@@ -141,33 +154,38 @@ export default function Login() {
 
 
 
-        {/* Divider */}
-        <div className="relative my-6 flex items-center justify-center">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border-custom" />
-          </div>
-          <span className="relative z-10 px-3 bg-white dark:bg-zinc-950 text-[10px] text-slate-400 uppercase tracking-wider font-bold">
-            Demo Sandbox
-          </span>
-        </div>
+        {/* Demo Sandbox Gate */}
+        {process.env.NEXT_PUBLIC_ALLOW_DEMO_SANDBOX === "true" && (
+          <>
+            {/* Divider */}
+            <div className="relative my-6 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border-custom" />
+              </div>
+              <span className="relative z-10 px-3 bg-white dark:bg-zinc-950 text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                Demo Sandbox
+              </span>
+            </div>
 
-        {/* Demo buttons */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => handleDemoLogin("admin")}
-            className="py-2 px-3 border border-border-custom hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground rounded-xl text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-1.5"
-          >
-            <User className="w-3.5 h-3.5 text-slate-400" />
-            <span>Admin Demo</span>
-          </button>
-          <button
-            onClick={() => handleDemoLogin("master")}
-            className="py-2 px-3 border border-border-custom hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground rounded-xl text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Shield className="w-3.5 h-3.5 text-slate-400" />
-            <span>Master Demo</span>
-          </button>
-        </div>
+            {/* Demo buttons */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleDemoLogin("admin")}
+                className="py-2 px-3 border border-border-custom hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground rounded-xl text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+              >
+                <User className="w-3.5 h-3.5 text-slate-400" />
+                <span>Admin Demo</span>
+              </button>
+              <button
+                onClick={() => handleDemoLogin("master")}
+                className="py-2 px-3 border border-border-custom hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground rounded-xl text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Shield className="w-3.5 h-3.5 text-slate-400" />
+                <span>Master Demo</span>
+              </button>
+            </div>
+          </>
+        )}
       </motion.div>
     </main>
   );
