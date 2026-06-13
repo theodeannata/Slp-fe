@@ -33,7 +33,7 @@ const csp = [
   "img-src 'self' data: blob:",
   isDev
     ? `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} http://127.0.0.1:8000 http://localhost:8000` // DEV: local backend
-    : `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://*.onrender.com`,                    // PROD: Render backend
+    : `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://*.vercel.app`,                      // PROD: Vercel backend
   "font-src 'self' data:",
   "frame-src 'none'",
   "object-src 'none'",
