@@ -90,11 +90,7 @@ export default function VendorsPage() {
       if (role === "admin") {
         throw new Error("Access Denied: Only Master and DB Admin role accounts can delete vendors.");
       }
-      if (isMockMode) {
-        useAppStore.getState().deleteVendor(deleteConfirmVend.vendor_id);
-      } else {
-        await api.vendors.delete(deleteConfirmVend.vendor_id);
-      }
+      await api.vendors.delete(deleteConfirmVend.vendor_id);
       setSuccess(`Vendor "${deleteConfirmVend.vendor}" deleted successfully.`);
       setDeleteConfirmVend(null);
       loadData();
@@ -116,19 +112,11 @@ export default function VendorsPage() {
     try {
       if (selectedVend) {
         // Edit Vendor
-        if (isMockMode) {
-          useAppStore.getState().updateVendor(selectedVend.vendor_id, formData);
-        } else {
-          await api.vendors.update(selectedVend.vendor_id, formData);
-        }
+        await api.vendors.update(selectedVend.vendor_id, formData);
         setSuccess(`Vendor ${formData.vendor} updated successfully.`);
       } else {
         // Add Vendor
-        if (isMockMode) {
-          useAppStore.getState().addVendor(formData);
-        } else {
-          await api.vendors.create(formData);
-        }
+        await api.vendors.create(formData);
         setSuccess(`Vendor ${formData.vendor} created successfully.`);
       }
       setModalOpen(false);
@@ -264,16 +252,11 @@ export default function VendorsPage() {
               </label>
               <input
                 type="text"
-                required
-                placeholder="e.g. V001"
-                {...register("vendor_id")}
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                disabled
+                placeholder="Auto-generated"
+                value={selectedVend ? selectedVend.vendor_id : "Auto-generated"}
+                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-slate-100 dark:bg-zinc-800 text-sm focus:outline-none text-slate-500 cursor-not-allowed"
               />
-              {selectedVend && (
-                <p className="text-[10px] text-amber-500 font-medium leading-tight">
-                  Changing ID will cascade update all purchase records.
-                </p>
-              )}
             </div>
 
             <div className="space-y-1">

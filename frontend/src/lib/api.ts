@@ -80,9 +80,23 @@ async function mockHandler(endpoint: string, options: RequestInit = {}) {
 
     if (method === "POST") {
       const body = JSON.parse(options.body as string) as Customer;
-      if (store.customers.some((c) => c.customer_id === body.customer_id)) {
-        throw new Error(`Customer ID ${body.customer_id} already exists`);
+      const name = body.customer.trim();
+      let firstChar = name[0] ? name[0].toUpperCase() : 'C';
+      if (!/[A-Z]/.test(firstChar)) {
+        firstChar = 'C';
       }
+      const existing = store.customers.filter((c) => c.customer_id.startsWith(firstChar));
+      let count = existing.length;
+      let newId = "";
+      while (true) {
+        newId = `${firstChar}${String(count + 1).padStart(3, "0")}`;
+        if (!store.customers.some((c) => c.customer_id === newId)) {
+          break;
+        }
+        count++;
+      }
+      body.customer_id = newId;
+      body.is_active = body.is_active !== false;
       store.addCustomer(body);
       return body;
     }
@@ -118,9 +132,22 @@ async function mockHandler(endpoint: string, options: RequestInit = {}) {
 
     if (method === "POST") {
       const body = JSON.parse(options.body as string) as Vendor;
-      if (store.vendors.some((v) => v.vendor_id === body.vendor_id)) {
-        throw new Error(`Vendor ID ${body.vendor_id} already exists`);
+      const name = body.vendor.trim();
+      let firstChar = name[0] ? name[0].toUpperCase() : 'V';
+      if (!/[A-Z]/.test(firstChar)) {
+        firstChar = 'V';
       }
+      const existing = store.vendors.filter((v) => v.vendor_id.startsWith(firstChar));
+      let count = existing.length;
+      let newId = "";
+      while (true) {
+        newId = `${firstChar}${String(count + 1).padStart(3, "0")}`;
+        if (!store.vendors.some((v) => v.vendor_id === newId)) {
+          break;
+        }
+        count++;
+      }
+      body.vendor_id = newId;
       store.addVendor(body);
       return body;
     }
@@ -192,13 +219,46 @@ async function mockHandler(endpoint: string, options: RequestInit = {}) {
       // Check query parameter source
       const urlParams = new URLSearchParams(endpoint.includes("?") ? endpoint.split("?")[1] : "");
       const source = urlParams.get("source");
-      let list = store.sales;
+      const tab = urlParams.get("tab");
+      const year = urlParams.get("year");
+
+      // Resolve tab and year
+      let resolvedTab = tab;
+      let resolvedYear = year;
       if (source) {
         if (source === "non_pt") {
-          list = list.filter((s) => s.sumber === "non_pt");
+          resolvedTab = "non-pt";
+          resolvedYear = "2022";
+        } else if (source === "2022") {
+          resolvedTab = "pt";
+          resolvedYear = "2022";
         } else {
-          list = list.filter((s) => s.tgl && s.tgl.substring(0, 4) === source);
+          resolvedTab = "pt";
+          resolvedYear = source;
         }
+      }
+
+      let list = store.sales;
+      if (resolvedTab === "non-pt") {
+        list = list.filter(
+          (s) =>
+            s.sumber === "non_pt" ||
+            s.harga_exc === null ||
+            s.harga_exc === undefined ||
+            s.harga_exc === 0
+        );
+      } else if (resolvedTab === "pt") {
+        list = list.filter(
+          (s) =>
+            s.sumber !== "non_pt" &&
+            s.harga_exc !== null &&
+            s.harga_exc !== undefined &&
+            s.harga_exc > 0
+        );
+      }
+
+      if (resolvedYear) {
+        list = list.filter((s) => s.tgl && s.tgl.substring(0, 4) === resolvedYear);
       }
       return [...list].sort((a, b) => new Date(b.tgl).getTime() - new Date(a.tgl).getTime());
     }
@@ -520,8 +580,11 @@ export const api = {
       }),
   },
   sales: {
-    list: (source?: string) => {
-      const query = source ? `?limit=10000&source=${encodeURIComponent(source)}` : "?limit=10000";
+    list: (source?: string, tab?: string, year?: string) => {
+      let query = "?limit=10000";
+      if (source) query += `&source=${encodeURIComponent(source)}`;
+      if (tab) query += `&tab=${encodeURIComponent(tab)}`;
+      if (year) query += `&year=${encodeURIComponent(year)}`;
       return fetchFromBackend(`/api/v1/sales${query}`);
     },
     get: (code: string) => fetchFromBackend(`/api/v1/sales/${encodeURIComponent(code)}`),

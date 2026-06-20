@@ -7,6 +7,7 @@ export interface Customer {
   npwp_ktp: string;
   address: string;
   city: string;
+  is_active?: boolean;
 }
 
 export interface Product {
@@ -14,6 +15,8 @@ export interface Product {
   nama_product: string;
   kemasan_kg: number;
   unit: string;
+  warehouse_stock?: number;
+  calculated_stock?: number;
 }
 
 export interface Sale {

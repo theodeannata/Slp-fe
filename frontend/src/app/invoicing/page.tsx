@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAppStore, Sale, Purchase } from "@/lib/store";
 import { api } from "@/lib/api";
 import {
@@ -22,7 +22,7 @@ export default function InvoicingPage() {
   const [activeCenterTab, setActiveCenterTab] = useState<"sales" | "purchases">("sales");
 
   // Invoice / Sales states
-  const [invoiceNumbers, setInvoiceNumbers] = useState<string[]>([]);
+  const [invoiceList, setInvoiceList] = useState<{ no_sj_inv: string; tgl: string; customer: string }[]>([]);
   const [selectedInvoiceNo, setSelectedInvoiceNo] = useState("");
   const [matchingInvoiceItems, setMatchingInvoiceItems] = useState<Sale[]>([]);
 
@@ -35,6 +35,10 @@ export default function InvoicingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Selected Years states
+  const [selectedSalesYear, setSelectedSalesYear] = useState<string>("");
+  const [selectedPoYear, setSelectedPoYear] = useState<string>("");
 
   // Vehicle Selection & Customization
   const [vehicles, setVehicles] = useState<{ plate: string; label: string }[]>(DEFAULT_VEHICLES);
@@ -67,9 +71,24 @@ export default function InvoicingPage() {
         } else {
           allSales = await api.sales.list();
         }
-        // Group by no_sj_inv
-        const uniqueNos = Array.from(new Set(allSales.map((s) => s.no_sj_inv).filter(Boolean)));
-        setInvoiceNumbers(uniqueNos);
+        
+        // Group by no_sj_inv and get latest date + customer
+        const invoiceMap = new Map<string, { tgl: string; customer: string }>();
+        allSales.forEach((s) => {
+          if (s.no_sj_inv) {
+            const existing = invoiceMap.get(s.no_sj_inv);
+            if (!existing || s.tgl > existing.tgl) {
+              invoiceMap.set(s.no_sj_inv, { tgl: s.tgl, customer: s.customer || "" });
+            }
+          }
+        });
+        setInvoiceList(
+          Array.from(invoiceMap.entries()).map(([no, val]) => ({
+            no_sj_inv: no,
+            tgl: val.tgl,
+            customer: val.customer,
+          }))
+        );
       } catch (err: any) {
         setError(err.message || "Failed to load invoice list from database.");
       } finally {
@@ -134,6 +153,72 @@ export default function InvoicingPage() {
     };
     loadPoNumbers();
   }, [isMockMode, role, purchasesPT, purchasesNonPT, activeCenterTab]);
+
+  // Available Years memos
+  const salesYears = useMemo(() => {
+    const years = invoiceList
+      .map((inv) => (inv.tgl ? inv.tgl.substring(0, 4) : ""))
+      .filter(Boolean);
+    const unique = Array.from(new Set(years)).sort().reverse();
+    return unique;
+  }, [invoiceList]);
+
+  const poYears = useMemo(() => {
+    const years = poList
+      .map((po) => (po.tgl ? po.tgl.substring(0, 4) : ""))
+      .filter(Boolean);
+    const unique = Array.from(new Set(years)).sort().reverse();
+    return unique;
+  }, [poList]);
+
+  // Auto-select latest year
+  useEffect(() => {
+    if (salesYears.length > 0 && !selectedSalesYear) {
+      setSelectedSalesYear(salesYears[0]);
+    }
+  }, [salesYears, selectedSalesYear]);
+
+  useEffect(() => {
+    if (poYears.length > 0 && !selectedPoYear) {
+      setSelectedPoYear(poYears[0]);
+    }
+  }, [poYears, selectedPoYear]);
+
+  // Filtered lists for the selected year
+  const invoicesForYear = useMemo(() => {
+    return invoiceList
+      .filter((inv) => inv.tgl && inv.tgl.substring(0, 4) === selectedSalesYear)
+      .sort((a, b) => b.tgl.localeCompare(a.tgl) || b.no_sj_inv.localeCompare(a.no_sj_inv));
+  }, [invoiceList, selectedSalesYear]);
+
+  const posForYear = useMemo(() => {
+    return poList
+      .filter((po) => po.tgl && po.tgl.substring(0, 4) === selectedPoYear)
+      .sort((a, b) => b.tgl.localeCompare(a.tgl) || b.no_po.localeCompare(a.no_po));
+  }, [poList, selectedPoYear]);
+
+  // Auto-select latest invoice/PO when the year or list changes
+  useEffect(() => {
+    if (invoicesForYear.length > 0) {
+      if (!selectedInvoiceNo || !invoicesForYear.some((item) => item.no_sj_inv === selectedInvoiceNo)) {
+        handleSelectInvoice(invoicesForYear[0].no_sj_inv);
+      }
+    } else {
+      setSelectedInvoiceNo("");
+      setMatchingInvoiceItems([]);
+    }
+  }, [selectedSalesYear, invoicesForYear]);
+
+  useEffect(() => {
+    if (posForYear.length > 0) {
+      if (!selectedPoNo || !posForYear.some((p) => p.no_po === selectedPoNo)) {
+        handleSelectPo(posForYear[0].no_po, posForYear[0].tab);
+      }
+    } else {
+      setSelectedPoNo("");
+      setMatchingPoItems([]);
+    }
+  }, [selectedPoYear, posForYear]);
 
   // Load vehicles from localStorage
   useEffect(() => {
@@ -256,15 +341,20 @@ export default function InvoicingPage() {
     }
   };
 
-  // Filters
-  const filteredInvoiceNumbers = invoiceNumbers.filter((no) =>
-    (no || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filters within the selected year
+  const filteredInvoiceNumbers = useMemo(() => {
+    return invoicesForYear.filter((item) =>
+      (item.no_sj_inv || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.customer || "").toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [invoicesForYear, searchQuery]);
 
-  const filteredPoNumbers = poList.filter((item) =>
-    (item.no_po || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (item.vendor || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPoNumbers = useMemo(() => {
+    return posForYear.filter((item) =>
+      (item.no_po || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.vendor || "").toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [posForYear, searchQuery]);
 
   // Sales Totals
   const firstInvoiceItem = matchingInvoiceItems[0];
@@ -351,12 +441,43 @@ export default function InvoicingPage() {
             {activeCenterTab === "sales" ? "Select Invoice" : "Select Purchase Order"}
           </h3>
 
+          {/* Year Selector Pills */}
+          <div className="space-y-1.5 pb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Filter by Year:
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {(activeCenterTab === "sales" ? salesYears : poYears).map((yr) => (
+                <button
+                  key={yr}
+                  onClick={() => {
+                    if (activeCenterTab === "sales") {
+                      setSelectedSalesYear(yr);
+                    } else {
+                      setSelectedPoYear(yr);
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                    (activeCenterTab === "sales" ? selectedSalesYear : selectedPoYear) === yr
+                      ? "bg-zinc-950 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 border-zinc-950 dark:border-zinc-50 shadow-sm"
+                      : "border-border-custom text-slate-450 hover:text-foreground hover:border-zinc-450 bg-card-bg"
+                  }`}
+                >
+                  {yr}
+                </button>
+              ))}
+              {(activeCenterTab === "sales" ? salesYears : poYears).length === 0 && (
+                <span className="text-[10px] text-slate-400 italic">No years available</span>
+              )}
+            </div>
+          </div>
+
           {/* Search Input */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder={activeCenterTab === "sales" ? "Search Invoice ID..." : "Search PO No / Vendor..."}
+              placeholder={activeCenterTab === "sales" ? "Search Invoice ID / Customer..." : "Search PO No / Vendor..."}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -380,14 +501,15 @@ export default function InvoicingPage() {
           <div className="border border-border-custom rounded-xl max-h-[300px] overflow-y-auto divide-y divide-border-custom bg-card-bg/40">
             {activeCenterTab === "sales" ? (
               <>
-                {filteredInvoiceNumbers.map((no) => (
+                {filteredInvoiceNumbers.map((item) => (
                   <button
-                    key={no}
-                    onClick={() => handleSelectInvoice(no)}
-                    className={`w-full text-left px-4 py-3 text-xs font-semibold font-mono hover:bg-slate-50 dark:hover:bg-zinc-900/50 block transition-colors cursor-pointer
-                      ${selectedInvoiceNo === no ? "bg-primary-light text-primary border-r-2 border-primary" : "text-foreground"}`}
+                    key={item.no_sj_inv}
+                    onClick={() => handleSelectInvoice(item.no_sj_inv)}
+                    className={`w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-zinc-900/50 block transition-colors cursor-pointer
+                      ${selectedInvoiceNo === item.no_sj_inv ? "bg-primary-light text-primary border-r-2 border-primary" : "text-foreground"}`}
                   >
-                    {no}
+                    <div className="text-xs font-bold font-mono">{item.no_sj_inv}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5 font-medium truncate">{item.customer}</div>
                   </button>
                 ))}
                 {filteredInvoiceNumbers.length === 0 && (

@@ -61,7 +61,8 @@ interface InvoiceFormInput {
 export default function SalesPage() {
   const { sales, customers, products, role, isMockMode, setSales } = useAppStore();
   const [data, setData] = useState<Sale[]>(sales);
-  const [selectedSource, setSelectedSource] = useState<string>("2024");
+  const [activeTab, setActiveTab] = useState<"pt" | "non-pt">("pt");
+  const [selectedYear, setSelectedYear] = useState<string>("2024");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -139,25 +140,24 @@ export default function SalesPage() {
           const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
           const yy = String(dateObj.getFullYear()).substring(2, 4);
           const mmyy = `${mm}${yy}`;
-          const prefix = `SLP/INV/${mmyy}/`;
           
-          const invoiceNos = sales
-            .map((s) => s.no_sj_inv)
-            .filter((no) => no && no.startsWith(prefix));
-            
+          // Enforce yearly sequence: match SLP/INV/??[yy]/XXXX
+          const regex = new RegExp(`^SLP/INV/\\d{2}${yy}/(\\d{4})$`);
           let maxNum = 0;
-          invoiceNos.forEach((no) => {
-            const parts = no.split("/");
-            const numStr = parts[parts.length - 1];
-            const num = parseInt(numStr, 10);
-            if (!isNaN(num) && num > maxNum) {
-              maxNum = num;
+          sales.forEach((s) => {
+            if (s.no_sj_inv) {
+              const match = s.no_sj_inv.match(regex);
+              if (match) {
+                const num = parseInt(match[1], 10);
+                if (!isNaN(num) && num > maxNum) {
+                  maxNum = num;
+                }
+              }
             }
           });
           
-          const nextNum = maxNum + 1;
-          const nextNumStr = String(nextNum).padStart(4, "0");
-          const newInvoiceNo = `${prefix}${nextNumStr}`;
+          const nextNumStr = String(maxNum + 1).padStart(4, "0");
+          const newInvoiceNo = `SLP/INV/${mmyy}/${nextNumStr}`;
           
           setValue("no_sj_inv", newInvoiceNo);
         }
@@ -187,37 +187,35 @@ export default function SalesPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const sourceQuery = selectedSource;
       let list: Sale[] = [];
       if (isMockMode) {
         list = useAppStore.getState().sales;
       } else {
-        list = await api.sales.list(sourceQuery); // Fetch only filtered sales records
+        list = await api.sales.list(undefined, activeTab, selectedYear);
         setSales(list);
       }
 
-      // Filter locally by year or non_pt (sumber column is deleted in DB)
-      if (sourceQuery) {
-        if (sourceQuery === "non_pt") {
-          list = list.filter(
-            (s) =>
-              s.sumber === "non_pt" ||
-              (s.tgl &&
-                s.tgl.substring(0, 4) === "2022" &&
-                (s.harga_exc === null || s.harga_exc === undefined || s.harga_exc === 0))
-          );
-        } else if (sourceQuery === "2022") {
-          list = list.filter(
-            (s) =>
-              s.tgl &&
-              s.tgl.substring(0, 4) === "2022" &&
-              s.harga_exc !== null &&
-              s.harga_exc !== undefined &&
-              s.harga_exc > 0
-          );
-        } else {
-          list = list.filter((s) => s.tgl && s.tgl.substring(0, 4) === sourceQuery);
-        }
+      // Filter locally for both mock and real modes to be safe and consistent
+      if (activeTab === "non-pt") {
+        list = list.filter(
+          (s) =>
+            s.sumber === "non_pt" ||
+            s.harga_exc === null ||
+            s.harga_exc === undefined ||
+            s.harga_exc === 0
+        );
+      } else {
+        list = list.filter(
+          (s) =>
+            s.sumber !== "non_pt" &&
+            s.harga_exc !== null &&
+            s.harga_exc !== undefined &&
+            s.harga_exc > 0
+        );
+      }
+
+      if (selectedYear) {
+        list = list.filter((s) => s.tgl && s.tgl.substring(0, 4) === selectedYear);
       }
 
       const sorted = [...list].sort((a, b) => new Date(b.tgl).getTime() - new Date(a.tgl).getTime());
@@ -232,22 +230,23 @@ export default function SalesPage() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSource, isMockMode]);
+  }, [activeTab, selectedYear, isMockMode]);
 
   const openAddModal = () => {
     setSelectedInvoiceNumber(null);
     setDeletedItemCodes([]);
     setInvoiceLimitError(null);
+    const firstActiveCustomer = customers.find((c) => c.is_active !== false) || customers[0];
     reset({
       tgl: new Date().toISOString().split("T")[0],
       no_sj_inv: "",
-      id: customers[0]?.customer_id || "",
-      customer: customers[0]?.customer || "",
-      npwp: customers[0]?.npwp_ktp || "",
+      id: firstActiveCustomer?.customer_id || "",
+      customer: firstActiveCustomer?.customer || "",
+      npwp: firstActiveCustomer?.npwp_ktp || "",
       tempo: 30,
       jatuh_tempo: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       catatan: "",
-      fp: "T",
+      fp: activeTab === "non-pt" ? "F" : "T",
       terbayar: 0,
       items: [
         {
@@ -315,11 +314,37 @@ export default function SalesPage() {
     }
   };
 
+  const findLatestPrice = (customerId: string, productCode: string): number | null => {
+    if (!customerId || !productCode) return null;
+    const matches = sales.filter(
+      (s) => s.id === customerId && s.kode_barang === productCode && s.harga_inc
+    );
+    if (matches.length === 0) return null;
+    const sorted = [...matches].sort((a, b) => {
+      const dateA = new Date(a.tgl).getTime();
+      const dateB = new Date(b.tgl).getTime();
+      if (dateA !== dateB) return dateB - dateA;
+      return b.kode_unik.localeCompare(a.kode_unik);
+    });
+    return sorted[0].harga_inc;
+  };
+
   const handleCustomerChange = (custId: string) => {
     const cust = customers.find((c) => c.customer_id === custId);
     if (cust) {
       setValue("customer", cust.customer);
       setValue("npwp", cust.npwp_ktp);
+      
+      // Auto pre-fill last price for any items currently in the form
+      const items = watch("items") || [];
+      items.forEach((item, index) => {
+        if (item.kode_barang) {
+          const price = findLatestPrice(custId, item.kode_barang);
+          if (price !== null) {
+            setValue(`items.${index}.harga_inc`, price);
+          }
+        }
+      });
     }
   };
 
@@ -352,21 +377,30 @@ export default function SalesPage() {
       return;
     }
 
+    // Quality of life: validate that order quantity is at least the SAK/DRUM/UNIT packaging size
+    for (let i = 0; i < formData.items.length; i++) {
+      const item = formData.items[i];
+      const qty = Number(item.qty_kg) || 0;
+      const kemasan = Number(item.satuan_kemasan) || 0;
+      if (qty < kemasan) {
+        setError(`Item #${i + 1} (${item.barang || item.kode_barang}): Order quantity (${qty} kg) must be at least one full packaging unit (${kemasan} kg).`);
+        return;
+      }
+    }
+
     setActionLoading(true);
     setError(null);
     setSuccess(null);
     try {
-      const invoiceTotal = formData.items.reduce((sum, item) => sum + (Number(item.qty_kg) * Number(item.harga_inc) || 0), 0);
       const totalPaid = Number(formData.terbayar) || 0;
-
-      // Distribute payment sequentially across rows
       let paidRemaining = totalPaid;
+      const isNonPT = activeTab === "non-pt";
       const processedItems = formData.items.map((item, idx) => {
         const qty = Number(item.qty_kg) || 0;
         const inc = Number(item.harga_inc) || 0;
-        const exc = Math.round((inc / 1.11) * 100) / 100;
+        const exc = isNonPT ? null : Math.round((inc / 1.11) * 100) / 100;
         const itemTotal = Math.round(qty * inc * 100) / 100;
-        const ppnVal = Math.round((itemTotal - qty * exc) * 100) / 100;
+        const ppnVal = isNonPT ? null : Math.round((itemTotal - qty * (exc || 0)) * 100) / 100;
         
         const itemPaid = Math.min(itemTotal, paidRemaining);
         const itemSisa = Math.max(0, itemTotal - itemPaid);
@@ -390,7 +424,7 @@ export default function SalesPage() {
           harga_exc: exc,
           harga_inc: inc,
           total_include: itemTotal,
-          nilai_lain: null, // distributed globally at invoice level? Or keep null.
+          nilai_lain: null,
           ppn: ppnVal,
           tempo: Number(formData.tempo),
           jatuh_tempo: formData.jatuh_tempo,
@@ -403,11 +437,11 @@ export default function SalesPage() {
           npwp: formData.npwp,
           catatan: formData.catatan,
           catatan2: item.catatan2 || null,
-          fp: formData.fp,
+          fp: isNonPT ? "F" : formData.fp,
         };
 
         if (isMockMode) {
-          saleRecord.sumber = formData.tgl ? formData.tgl.substring(0, 4) : "2026";
+          saleRecord.sumber = isNonPT ? "non_pt" : (formData.tgl ? formData.tgl.substring(0, 4) : "2026");
         }
 
         return saleRecord;
@@ -692,22 +726,46 @@ export default function SalesPage() {
         </div>
       </div>
 
+      {/* Tab Switcher */}
+      <div className="flex items-center border-b border-border-custom">
+        <button
+          onClick={() => setActiveTab("pt")}
+          className={`px-4 py-2.5 font-bold text-xs tracking-wide transition-colors relative cursor-pointer
+            ${activeTab === "pt" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
+        >
+          PT Invoices
+          {activeTab === "pt" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("non-pt")}
+          className={`px-4 py-2.5 font-bold text-xs tracking-wide transition-colors relative cursor-pointer
+            ${activeTab === "non-pt" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
+        >
+          Non-PT Invoices
+          {activeTab === "non-pt" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
+          )}
+        </button>
+      </div>
+
       {/* Filter and controls */}
       <div className="flex items-center gap-2">
         <Filter className="w-4 h-4 text-slate-400 shrink-0" />
         <span className="text-xs text-slate-400 font-medium">Filter by Year:</span>
-        {["2022", "2023", "2024", "2025", "2026", "non_pt"].map((src) => (
+        {["2022", "2023", "2024", "2025", "2026"].map((yr) => (
           <button
-            key={src}
-            onClick={() => setSelectedSource(src)}
+            key={yr}
+            onClick={() => setSelectedYear(yr)}
             className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer border transition-colors
               ${
-                selectedSource === src
+                selectedYear === yr
                   ? "bg-primary-light text-primary border-primary/20"
                   : "border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}
           >
-            {src === "non_pt" ? "Non-PT" : src}
+            {yr}
           </button>
         ))}
       </div>
@@ -995,6 +1053,13 @@ export default function SalesPage() {
                             if (matchingProd) {
                               setValue(`items.${index}.barang`, matchingProd.nama_product);
                               setValue(`items.${index}.satuan_kemasan`, matchingProd.kemasan_kg);
+                              
+                              // Trigger price lookup for this customer + product combination
+                              const currentCustId = watch("id");
+                              const price = findLatestPrice(currentCustId, code);
+                              if (price !== null) {
+                                setValue(`items.${index}.harga_inc`, price);
+                              }
                             }
                           }}
                           className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:ring-primary/20 focus:outline-none"
@@ -1091,7 +1156,7 @@ export default function SalesPage() {
               ))}
             </datalist>
             <datalist id="sales-customers-list">
-              {customers.map((c) => (
+              {customers.filter((c) => c.is_active !== false).map((c) => (
                 <option key={c.customer_id} value={c.customer_id}>
                   {c.customer_id} — {c.customer}
                 </option>
