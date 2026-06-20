@@ -147,30 +147,29 @@ export default function PurchasesPage() {
           const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
           const yy = String(dateObj.getFullYear()).substring(2, 4);
           const mmyy = `${mm}${yy}`;
-          const prefix = `SLP/PO/${mmyy}/`;
           
+          // Enforce yearly sequence: match SLP/PO/??[yy]/XXXX
+          const regex = new RegExp(`^SLP/PO/\\d{2}${yy}/(\\d{4})$`);
+          let maxNum = 0;
           const currentPurchasesList = [
             ...purchasesPT,
             ...purchasesNonPT
           ];
           
-          const poNos = currentPurchasesList
-            .map((p) => p.no_po)
-            .filter((no) => no && no.startsWith(prefix));
-            
-          let maxNum = 0;
-          poNos.forEach((no) => {
-            const parts = no.split("/");
-            const numStr = parts[parts.length - 1];
-            const num = parseInt(numStr, 10);
-            if (!isNaN(num) && num > maxNum) {
-              maxNum = num;
+          currentPurchasesList.forEach((p) => {
+            if (p.no_po) {
+              const match = p.no_po.match(regex);
+              if (match) {
+                const num = parseInt(match[1], 10);
+                if (!isNaN(num) && num > maxNum) {
+                  maxNum = num;
+                }
+              }
             }
           });
           
-          const nextNum = maxNum + 1;
-          const nextNumStr = String(nextNum).padStart(4, "0");
-          const newPoNo = `${prefix}${nextNumStr}`;
+          const nextNumStr = String(maxNum + 1).padStart(4, "0");
+          const newPoNo = `SLP/PO/${mmyy}/${nextNumStr}`;
           
           setValue("no_po", newPoNo);
         }

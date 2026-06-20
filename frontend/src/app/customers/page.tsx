@@ -67,13 +67,17 @@ export default function CustomersPage() {
       npwp_ktp: "",
       address: "",
       city: "",
+      is_active: true,
     });
     setModalOpen(true);
   };
 
   const openEditModal = (cust: Customer) => {
     setSelectedCust(cust);
-    reset(cust);
+    reset({
+      ...cust,
+      is_active: cust.is_active !== false,
+    });
     setModalOpen(true);
   };
 
@@ -164,6 +168,22 @@ export default function CustomersPage() {
       sortKey: "city" as keyof Customer,
       accessor: (item: Customer) => <span className="text-slate-600 dark:text-slate-400">{item.city}</span>,
     },
+    {
+      header: "Status",
+      sortKey: "is_active" as any,
+      accessor: (item: Customer) => (
+        <span
+          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider
+            ${
+              item.is_active !== false
+                ? "bg-emerald-500/10 border-emerald-500/20 text-accent-green"
+                : "bg-rose-500/10 border-rose-500/20 text-accent-red"
+            }`}
+        >
+          {item.is_active !== false ? "Active" : "Inactive"}
+        </span>
+      ),
+    },
   ];
 
   return (
@@ -252,16 +272,11 @@ export default function CustomersPage() {
               </label>
               <input
                 type="text"
-                required
-                placeholder="e.g. A001"
-                {...register("customer_id")}
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                disabled
+                placeholder="Auto-generated"
+                value={selectedCust ? selectedCust.customer_id : "Auto-generated"}
+                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-slate-100 dark:bg-zinc-800 text-sm focus:outline-none text-slate-500 cursor-not-allowed"
               />
-              {selectedCust && (
-                <p className="text-[10px] text-amber-500 font-medium leading-tight">
-                  Changing ID will cascade update all sales records.
-                </p>
-              )}
             </div>
 
             <div className="space-y-1">
@@ -315,6 +330,20 @@ export default function CustomersPage() {
               className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             />
           </div>
+
+          {selectedCust && (
+            <div className="flex items-center gap-2.5 p-3.5 border border-border-custom rounded-xl bg-slate-50/50 dark:bg-zinc-900/25">
+              <input
+                type="checkbox"
+                id="is_active"
+                {...register("is_active")}
+                className="w-4 h-4 text-primary focus:ring-primary/30 border-border-custom rounded cursor-pointer"
+              />
+              <label htmlFor="is_active" className="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                Mark as Active Customer
+              </label>
+            </div>
+          )}
 
           <div className="pt-4 flex items-center justify-end gap-2 border-t border-border-custom">
             <button
