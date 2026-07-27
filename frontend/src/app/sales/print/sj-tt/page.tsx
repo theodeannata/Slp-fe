@@ -350,24 +350,21 @@ function PrintSjContent() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-black font-bold uppercase" style={{ fontSize: '8.5pt' }}>
-                    <th className="py-1 w-10 text-center">No</th>
                     <th className="py-1 text-left">Nama Dokumen</th>
                     <th className="py-1 text-right w-48">Nomor Dokumen</th>
                   </tr>
                 </thead>
                 <tbody style={{ fontSize: '9.35pt' }} className="font-semibold">
                   <tr className="h-7">
-                    <td className="text-center">1</td>
                     <td>Faktur Penjualan (Asli)</td>
                     <td className="text-right font-mono">{invNumber}</td>
                   </tr>
-                  <tr className="h-7">
-                    <td className="text-center">2</td>
-                    <td>Faktur Pajak Standard (Jika Ada)</td>
-                    <td className="text-right font-mono">
-                      {items[0]?.fp === "T" ? `FP-${invNumber.split("/").pop()}` : "-"}
-                    </td>
-                  </tr>
+                  {items[0]?.fp === "T" && (
+                    <tr className="h-7">
+                      <td>Faktur Pajak Standard</td>
+                      <td className="text-right font-mono">{`FP-${invNumber.split("/").pop()}`}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -437,7 +434,6 @@ function PrintSjContent() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-t border-b border-black font-bold uppercase" style={{ fontSize: '8.5pt' }}>
-                    <th className="py-1 w-10 text-center">No</th>
                     <th className="py-1 w-20 text-center">Unit</th>
                     <th className="py-1 px-4 text-left">Nama Barang</th>
                     <th className="py-1 text-right w-36">Total (kg)</th>
@@ -449,7 +445,6 @@ function PrintSjContent() {
                     const calculatedSaks = Math.round((item.qty_kg || 0) / packaging);
                     return (
                       <tr key={idx} className="h-7">
-                        <td className="text-center">{idx + 1}</td>
                         <td className="text-center uppercase">{calculatedSaks} SAK</td>
                         <td className="px-4">
                           {item.barang} @{packaging} Kg
@@ -463,7 +458,6 @@ function PrintSjContent() {
                   {/* Spacing rows without borders */}
                   {Array.from({ length: emptyRowsCount }).map((_, i) => (
                     <tr key={`sj-spacer-${i}`} className="h-7">
-                      <td>&nbsp;</td>
                       <td>&nbsp;</td>
                       <td>&nbsp;</td>
                       <td>&nbsp;</td>

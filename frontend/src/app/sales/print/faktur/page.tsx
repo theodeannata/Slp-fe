@@ -317,14 +317,14 @@ function PrintFakturContent() {
 
       {/* Compact A4 Page container with outer border inline with table border */}
       {/* Font Scaled by 0.85 (11pt * 0.85 = 9.35pt) */}
-      <div 
+      <div
         className="print-a4-page w-[186mm] mx-auto bg-white border border-black py-8 pb-12 px-0 flex flex-col box-border"
-        style={{ 
-          fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif', 
-          fontSize: '9.35pt' 
+        style={{
+          fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif',
+          fontSize: '9.35pt'
         }}
       >
-        
+
         <div>
           {/* Header (Logo + NOT bold Title in Cambria 23.8pt (28pt * 0.85)) */}
           <div className="flex justify-between items-start mb-6 px-8">
@@ -392,17 +392,17 @@ function PrintFakturContent() {
                   const rowTotal = (item.qty_kg || 0) * rowExc;
                   return (
                     <tr key={idx} className="h-7">
-                      <td className="text-center border-r border-black py-0.5 px-1 font-mono text-zinc-655">{idx + 1}</td>
-                      <td className="text-right border-r border-black py-0.5 px-2 font-mono">
+                      <td className="text-center border-r border-black py-0.5 px-1">{idx + 1}</td>
+                      <td className="text-right border-r border-black py-0.5 px-2">
                         {formatNumber(item.qty_kg)}
                       </td>
                       <td className="text-left border-r border-black py-0.5 px-4">
                         {item.barang}
                       </td>
-                      <td className="text-right border-r border-black py-0.5 px-2 font-mono">
+                      <td className="text-right border-r border-black py-0.5 px-2">
                         Rp{formatNumber(rowExc)}
                       </td>
-                      <td className="text-right py-0.5 px-2 font-mono">
+                      <td className="text-right py-0.5 px-2">
                         Rp{formatNumber(rowTotal)}
                       </td>
                     </tr>
@@ -434,7 +434,7 @@ function PrintFakturContent() {
                 </p>
               </div>
               {items[0].catatan2 && (
-                <div className="text-[10px] text-zinc-500 font-mono mt-2 italic">
+                <div className="text-[10px] text-zinc-500 mt-2 italic">
                   Catatan: {items[0].catatan2}
                 </div>
               )}
@@ -457,7 +457,7 @@ function PrintFakturContent() {
             </div>
 
             {/* Total values column - 20% width (aligns with TOTAL column) */}
-            <div className="w-[20%] py-2 px-2.5 flex flex-col justify-between text-right font-mono font-normal">
+            <div className="w-[20%] py-2 px-2.5 flex flex-col justify-between text-right font-normal">
               {hasPPN ? (
                 <>
                   <span>Rp{formatNumber(totalExc)}</span>
