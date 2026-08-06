@@ -97,6 +97,20 @@ export interface Payment {
   note: string | null;
 }
 
+export interface BankStatement {
+  id: string;
+  period_month: string;
+  tanggal_terima?: string | null;
+  tanggal: string;
+  keterangan: string;
+  masuk?: number | null;
+  keluar?: number | null;
+  account?: string | null; // "AR" | "AP" | "Biaya" | "Biaya PS" | "CB" | "Komisi"
+  saldo?: number | null;
+  no_invoice?: string | null;
+  created_at?: string;
+}
+
 export interface Vendor {
   vendor_id: string;
   vendor: string;

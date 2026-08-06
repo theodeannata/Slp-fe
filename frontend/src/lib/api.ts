@@ -678,6 +678,96 @@ export const api = {
         method: "POST",
       }),
   },
+  bankStatements: {
+    list: async (periodMonth?: string, account?: string) => {
+      try {
+        let url = `${API_BASE_URL}/api/v1/bank-statements?limit=10000`;
+        if (periodMonth && periodMonth !== "ALL") url += `&period_month=${encodeURIComponent(periodMonth)}`;
+        if (account && account !== "ALL") url += `&account=${encodeURIComponent(account)}`;
+        
+        const res = await fetch(url);
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (err) {
+        console.warn("Backend API gateway error, falling back to direct Supabase query:", err);
+      }
+
+      // Direct Supabase JS Client fallback
+      if (supabase) {
+        let sbQuery = supabase.from("bank_pt").select("*").order("tanggal", { ascending: true }).limit(10000);
+        if (periodMonth && periodMonth !== "ALL") {
+          sbQuery = sbQuery.eq("period_month", periodMonth);
+        }
+        if (account && account !== "ALL") {
+          sbQuery = sbQuery.eq("account", account);
+        }
+        const { data, error } = await sbQuery;
+        if (!error && data && data.length > 0) {
+          return data;
+        }
+      }
+      return [];
+    },
+    create: (data: any) =>
+      fetchFromBackend("/api/v1/bank-statements", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: any) =>
+      fetchFromBackend(`/api/v1/bank-statements/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      fetchFromBackend(`/api/v1/bank-statements/${id}`, {
+        method: "DELETE",
+      }),
+    match: (bankPtId: string, penjualanKodeUnik: string, allocatedAmount: number) =>
+      fetchFromBackend("/api/v1/bank-statements/match", {
+        method: "POST",
+        body: JSON.stringify({
+          bank_pt_id: bankPtId,
+          penjualan_kode_unik: penjualanKodeUnik,
+          allocated_amount: allocatedAmount,
+        }),
+      }),
+    unmatch: (bankPtId: string) =>
+      fetchFromBackend(`/api/v1/bank-statements/unmatch/${bankPtId}`, {
+        method: "POST",
+      }),
+    autoReconcile: (periodMonth?: string) => {
+      let query = "";
+      if (periodMonth && periodMonth !== "ALL") query = `?period_month=${encodeURIComponent(periodMonth)}`;
+      return fetchFromBackend(`/api/v1/bank-statements/auto-reconcile${query}`, {
+        method: "POST",
+      });
+    },
+    upload: async (file: File, periodMonth: string = "2026-06") => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const isMockMode = useAppStore.getState().isMockMode;
+      if (isMockMode) return [];
+
+      let token = null;
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token;
+      }
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/bank-statements/upload?period_month=${encodeURIComponent(periodMonth)}`,
+        {
+          method: "POST",
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: formData,
+        }
+      );
+      if (!response.ok) throw new Error("Failed to upload statement file.");
+      return response.json();
+    },
+  },
   users: {
     create: (data: { email: string; password?: string; role: string }) =>
       fetchFromBackend("/api/v1/users", {

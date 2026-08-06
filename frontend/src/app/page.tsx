@@ -98,7 +98,6 @@ export default function Dashboard() {
   const [invoiceFilter, setInvoiceFilter] = useState<"all" | "overdue" | "pending">("all");
   const [customerSortBy, setCustomerSortBy] = useState<"outstanding" | "name">("outstanding");
   const [expandedCustomers, setExpandedCustomers] = useState<Record<string, boolean>>({});
-  const [showChartModal, setShowChartModal] = useState(false);
 
   const isMaster = role === "master" || role === "db_admin";
   const isPending = role !== "master" && role !== "admin" && role !== "db_admin";
@@ -265,6 +264,8 @@ export default function Dashboard() {
       [name]: !prev[name],
     }));
   };
+
+  // Visual analytics calculations reverted
 
   const formatRupiah = (num: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -496,15 +497,7 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowChartModal(true)}
-                    className="px-3 py-1.5 border border-border-custom hover:border-zinc-400 dark:hover:border-zinc-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground transition-all cursor-pointer shadow-sm"
-                    title="View Full Page Bar Chart"
-                  >
-                    <BarChart3 className="w-3.5 h-3.5 text-primary animate-pulse" />
-                    <span>Analytics Chart</span>
-                  </button>
-                  <span className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-mono">
+                  <span className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-455 border border-rose-500/20 font-mono">
                     Total AR: {formatRupiah(totalOutstandingBalance)}
                   </span>
                 </div>
@@ -774,185 +767,6 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Full Page Bar Chart Modal */}
-              {showChartModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md dark:bg-black/80">
-                  <div className="relative w-full max-w-5xl h-[85vh] flex flex-col bg-sidebar-bg border border-card-border shadow-2xl rounded-2xl overflow-hidden z-50">
-                    {/* Modal Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-border-custom bg-slate-50/50 dark:bg-slate-900/20">
-                      <div className="space-y-0.5">
-                        <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
-                          <BarChart3 className="w-5 h-5 text-primary" />
-                          Accounts Receivable Analysis
-                        </h3>
-                        <p className="text-xs text-slate-400">
-                          Visual outstanding balances breakdown by customer. Click a customer card to expand their invoices.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setShowChartModal(false)}
-                        className="p-1.5 rounded-lg border border-border-custom text-slate-400 hover:text-foreground hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                        title="Close Analytics Chart"
-                      >
-                        <Minimize2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* Chart Container */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="border border-border-custom bg-card-bg/40 p-4 rounded-xl shadow-sm text-center">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Outstanding AR</span>
-                          <h4 className="text-lg font-bold text-foreground mt-1 font-mono">{formatRupiah(totalOutstandingBalance)}</h4>
-                        </div>
-                        <div className="border border-border-custom bg-card-bg/40 p-4 rounded-xl shadow-sm text-center">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Critical Overdue AR</span>
-                          <h4 className="text-lg font-bold text-rose-500 mt-1 font-mono">{formatRupiah(totalOverdueBalance)}</h4>
-                        </div>
-                        <div className="border border-border-custom bg-card-bg/40 p-4 rounded-xl shadow-sm text-center">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Unsettled Customers</span>
-                          <h4 className="text-lg font-bold text-foreground mt-1">{customerBreakdown.length}</h4>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center text-xs font-bold text-slate-400 border-b border-border-custom pb-2">
-                          <span>Customer Entity</span>
-                          <span>Outstanding Balance & Proportional Weight</span>
-                        </div>
-                        
-                        <div className="space-y-3.5">
-                          {customerBreakdown.map((c, index) => {
-                            const maxVal = Math.max(...customerBreakdown.map((item) => item.totalOutstanding), 1);
-                            const pctMax = (c.totalOutstanding / maxVal) * 100;
-                            const pctTotal = totalOutstandingBalance > 0 ? (c.totalOutstanding / totalOutstandingBalance) * 100 : 0;
-                            const isWorstOverdue = c.worstAgingDays > 30;
-                            const isExpanded = expandedCustomers[c.customerName];
-
-                            return (
-                              <div
-                                key={c.customerName}
-                                onClick={() => toggleExpandCustomer(c.customerName)}
-                                className="border border-border-custom rounded-xl p-4 bg-card-bg/30 hover:border-zinc-355 dark:hover:border-zinc-700 transition-colors shadow-sm space-y-3 cursor-pointer select-none"
-                              >
-                                <div className="flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <span className="w-5 h-5 rounded-full border border-border-custom bg-card-bg text-[10px] font-bold flex items-center justify-center text-slate-500">
-                                      {index + 1}
-                                    </span>
-                                    <span className="font-bold text-foreground">{c.customerName}</span>
-                                    <span className="text-[10px] text-slate-400">({c.invoicesCount} Invoices)</span>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="font-bold text-foreground font-mono">{formatRupiah(c.totalOutstanding)}</span>
-                                    <span className="text-[10px] text-slate-400 ml-2 font-mono">({pctTotal.toFixed(1)}%)</span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1 h-6 rounded-lg bg-slate-100 dark:bg-zinc-800 overflow-hidden relative shadow-inner">
-                                    <div
-                                      style={{ width: `${pctMax}%` }}
-                                      className={`h-full rounded-lg bg-gradient-to-r ${
-                                        isWorstOverdue 
-                                          ? "from-rose-500/80 to-rose-600" 
-                                          : "from-primary/70 to-primary"
-                                      } transition-all duration-750`}
-                                    />
-                                    {c.totalOverdue > 0 && (
-                                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
-                                        Overdue: {formatRupiah(c.totalOverdue)}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="text-slate-400 hover:text-foreground shrink-0 transition-colors">
-                                    {isExpanded ? (
-                                      <ChevronUp className="w-4 h-4" />
-                                    ) : (
-                                      <ChevronDown className="w-4 h-4" />
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Expanded invoices list inside the chart modal */}
-                                {isExpanded && (
-                                  <div
-                                    className="mt-3 pt-3 border-t border-border-custom bg-slate-500/5 p-3 rounded-lg space-y-2 animate-fadeIn"
-                                    onClick={(e) => e.stopPropagation()} // Prevent closing card when clicking inside the table
-                                  >
-                                    <div className="overflow-x-auto">
-                                      <table className="w-full text-left text-[11px] border-collapse min-w-[500px]">
-                                        <thead>
-                                          <tr className="text-slate-400 font-bold border-b border-border-custom uppercase tracking-wider text-[9px] pb-1">
-                                            <th className="py-1">Invoice Details</th>
-                                            <th className="py-1">Due Date</th>
-                                            <th className="py-1 text-center">Paid Ratio</th>
-                                            <th className="py-1 text-right">Balance Due</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border-custom/50 text-foreground">
-                                          {c.invoices.map((inv) => {
-                                            const daysDiff = getDaysDiff(inv.jatuh_tempo);
-                                            const isOverdue = daysDiff > 0;
-                                            const pctPaid = inv.total_include > 0 ? (inv.terbayar / inv.total_include) * 100 : 0;
-                                            return (
-                                              <tr key={inv.kode_unik} className="hover:bg-slate-500/5 transition-colors">
-                                                <td className="py-2">
-                                                  <div className="font-mono font-bold text-zinc-550 dark:text-zinc-400">{inv.no_sj_inv}</div>
-                                                  <div className="text-[9px] text-slate-400 mt-0.5">Issued: {inv.tgl}</div>
-                                                </td>
-                                                <td className="py-2">
-                                                  <div>{inv.jatuh_tempo}</div>
-                                                  <div className="text-[9px] mt-0.5 font-semibold">
-                                                    {isOverdue ? (
-                                                      <span className="text-rose-600">Overdue by {daysDiff}d</span>
-                                                    ) : (
-                                                      <span className="text-slate-455">Due in {Math.abs(daysDiff)}d</span>
-                                                    )}
-                                                  </div>
-                                                </td>
-                                                <td className="py-2 text-center">
-                                                  <div className="text-[10px] font-bold text-slate-500">{pctPaid.toFixed(0)}%</div>
-                                                  <div className="w-16 h-1 rounded-full bg-slate-200 dark:bg-zinc-800 mx-auto overflow-hidden mt-0.5">
-                                                    <div style={{ width: `${pctPaid}%` }} className="bg-emerald-500 h-full" />
-                                                  </div>
-                                                </td>
-                                                <td className="py-2 text-right font-bold text-rose-500">
-                                                  <div>{formatRupiah(inv.sisa)}</div>
-                                                  <div className="text-[9px] text-slate-400 font-normal">Total: {formatRupiah(inv.total_include)}</div>
-                                                </td>
-                                              </tr>
-                                            );
-                                          })}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          {customerBreakdown.length === 0 && (
-                            <div className="py-16 text-center text-slate-400 italic">
-                              No customer data to chart.
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Modal Footer */}
-                    <div className="px-6 py-4 border-t border-border-custom bg-slate-50/50 dark:bg-slate-900/20 flex items-center justify-end">
-                      <button
-                        onClick={() => setShowChartModal(false)}
-                        className="px-4 py-2 border border-border-custom hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
-                      >
-                        Close Chart
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Inventory Stock Level Audit View */}
@@ -967,7 +781,8 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+              <div className="overflow-y-auto max-h-[580px] pr-1 scrollbar-thin">
+                <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 bg-card-bg z-10">
                     <tr className="text-slate-400 uppercase tracking-wider font-semibold border-b border-border-custom">
@@ -1047,6 +862,7 @@ export default function Dashboard() {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           </div>

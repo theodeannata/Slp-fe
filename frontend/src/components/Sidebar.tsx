@@ -46,7 +46,13 @@ const navItems = [
     name: "Payments Ledger",
     href: "/payments",
     icon: Database,
-    roles: ["master", "db_admin"],
+    roles: ["admin", "master", "db_admin"],
+  },
+  {
+    name: "Bank Statements",
+    href: "/bank-statements",
+    icon: CreditCard,
+    roles: ["admin", "master", "db_admin"],
   },
   {
     name: "User Management",
