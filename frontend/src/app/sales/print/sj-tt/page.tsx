@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useAppStore, Sale } from "@/lib/store";
 import { api } from "@/lib/api";
 import { ArrowLeft, Printer, Edit2, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 function formatDateIndo(dateStr: string): string {
   if (!dateStr) return "-";
@@ -162,13 +163,15 @@ function PrintSjContent() {
       <div className="max-w-[210mm] mx-auto mb-6 bg-white border border-zinc-300 p-4 rounded-xl flex flex-col gap-4 shadow-sm print:hidden no-print font-mono text-xs">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
+            <Button
+              variant="outline"
+              size="icon"
               onClick={() => router.back()}
-              className="p-2 border border-zinc-300 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
               title="Go Back"
+              className="h-8 w-8"
             >
               <ArrowLeft className="w-4 h-4" />
-            </button>
+            </Button>
             <div>
               <h1 className="text-xs font-bold uppercase">Print SJ + TT</h1>
               <p className="text-[10px] text-zinc-550 font-mono mt-0.5">{sjNumber} / {invNumber}</p>
@@ -176,9 +179,11 @@ function PrintSjContent() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setIsEditing(!isEditing)}
-              className="px-3.5 py-1.5 border border-zinc-400 rounded-lg hover:bg-zinc-100 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+              className="text-[11px] font-bold flex items-center gap-1.5"
             >
               {isEditing ? (
                 <>
@@ -191,14 +196,15 @@ function PrintSjContent() {
                   <span>Edit Details</span>
                 </>
               )}
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
               onClick={() => window.print()}
-              className="px-3.5 py-1.5 bg-black hover:bg-zinc-800 text-white rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print Page</span>
-            </button>
+            </Button>
           </div>
         </div>
 

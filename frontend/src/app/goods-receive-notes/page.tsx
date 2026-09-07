@@ -5,6 +5,7 @@ import { useAppStore, GoodsReceiveNote, Purchase } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Table } from "@/components/Table";
 import { Modal } from "@/components/Modal";
+import { useTranslation } from "@/lib/i18n";
 import { useForm } from "react-hook-form";
 import {
   Plus,
@@ -17,6 +18,11 @@ import {
   Calendar,
   Filter
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface GRNFormInput {
   po_type: "pt" | "non-pt";
@@ -27,6 +33,7 @@ interface GRNFormInput {
 }
 
 export default function GoodsReceiveNotesPage() {
+  const { t } = useTranslation();
   const {
     goodsReceiveNotes,
     setGoodsReceiveNotes,
@@ -223,7 +230,7 @@ export default function GoodsReceiveNotesPage() {
 
   const columns = [
     {
-      header: "Received Date",
+      header: t.goodsReceiveNotes.receiveDate,
       sortKey: "tgl_terima" as keyof GoodsReceiveNote,
       accessor: (item: GoodsReceiveNote) => (
         <div className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-200">
@@ -233,7 +240,7 @@ export default function GoodsReceiveNotesPage() {
       ),
     },
     {
-      header: "PO Reference Code",
+      header: t.goodsReceiveNotes.linkedPO,
       sortKey: "pembelian_id" as keyof GoodsReceiveNote,
       accessor: (item: GoodsReceiveNote) => {
         const ref = item.pembelian_id || item.beli_non_pt_id || "-";
@@ -249,7 +256,7 @@ export default function GoodsReceiveNotesPage() {
       },
     },
     {
-      header: "Product SKU & Description",
+      header: `${t.products.productCode} & ${t.products.productName}`,
       sortKey: "barang" as keyof GoodsReceiveNote,
       accessor: (item: GoodsReceiveNote) => (
         <div className="space-y-0.5">
@@ -259,7 +266,7 @@ export default function GoodsReceiveNotesPage() {
       ),
     },
     {
-      header: "Qty Received",
+      header: t.goodsReceiveNotes.qtyReceivedKg,
       sortKey: "qty_terima_kg" as keyof GoodsReceiveNote,
       accessor: (item: GoodsReceiveNote) => (
         <span className="font-extrabold text-sm text-foreground">
@@ -268,10 +275,10 @@ export default function GoodsReceiveNotesPage() {
       ),
     },
     {
-      header: "Memo / Notes",
+      header: t.goodsReceiveNotes.notes,
       sortKey: "note" as keyof GoodsReceiveNote,
       accessor: (item: GoodsReceiveNote) => (
-        <p className="text-xs text-slate-550 dark:text-slate-400 italic max-w-xs truncate">
+        <p className="text-xs text-slate-555 dark:text-slate-400 italic max-w-xs truncate">
           {item.note || "-"}
         </p>
       ),
@@ -293,55 +300,54 @@ export default function GoodsReceiveNotesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <Package className="w-6 h-6 text-primary" />
-            <span>Goods Receive Notes (GRN) Journal</span>
+            <span>{t.goodsReceiveNotes.title}</span>
           </h1>
-          <p className="text-xs text-slate-550 mt-0.5">
-            Log, track, and manage batch product receipt deliveries against registered Purchase Orders.
+          <p className="text-xs text-slate-555 mt-0.5">
+            {t.goodsReceiveNotes.subtitle}
           </p>
         </div>
 
-        <button
+        <Button
           onClick={openAddModal}
-          className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-sm transition-colors"
+          className="flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          <span>Register Goods Receipt (GRN)</span>
-        </button>
+          <span>{t.goodsReceiveNotes.addNew}</span>
+        </Button>
       </div>
 
       {/* Filter by Year */}
-      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl border border-border-custom w-fit">
-        <Filter className="w-4 h-4 text-slate-450 dark:text-slate-400 shrink-0" />
-        <span className="text-xs text-slate-550 dark:text-slate-400 font-medium">Filter by Year:</span>
-        {["2022", "2023", "2024", "2025", "2026"].map((yr) => (
-          <button
-            key={yr}
-            onClick={() => setSelectedYear(yr)}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer border transition-colors
-              ${
-                selectedYear === yr
-                  ? "bg-primary-light text-primary border-primary/20"
-                  : "border-border-custom hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-600 dark:text-slate-350"
-              }`}
-          >
-            {yr}
-          </button>
-        ))}
+      <div className="flex items-center gap-2">
+        <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+        <span className="text-xs text-muted-foreground font-medium">{t.common.filter} Year:</span>
+        <div className="flex items-center gap-1.5">
+          {["2022", "2023", "2024", "2025", "2026"].map((yr) => (
+            <Button
+              key={yr}
+              size="sm"
+              variant={selectedYear === yr ? "default" : "outline"}
+              onClick={() => setSelectedYear(yr)}
+              className="h-7 px-3 text-xs"
+            >
+              {yr}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Messages */}
       {error && (
-        <div className="p-3.5 rounded-xl border bg-red-500/10 text-accent-red border-red-500/20 text-xs flex items-start gap-2.5">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {success && (
-        <div className="p-3.5 rounded-xl border bg-emerald-500/10 text-accent-green border-emerald-500/20 text-xs flex items-start gap-2.5">
-          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{success}</span>
-        </div>
+        <Alert className="border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
       )}
 
       {/* Main Datatable */}
@@ -349,7 +355,7 @@ export default function GoodsReceiveNotesPage() {
         columns={columns}
         data={filteredGrns}
         isLoading={isLoading}
-        searchPlaceholder="Search GRN by PO code, product name, or SKU..."
+        searchPlaceholder={t.goodsReceiveNotes.searchPlaceholder}
         searchFilter={(item: GoodsReceiveNote, query) =>
           (item.pembelian_id ? item.pembelian_id.toLowerCase().includes(query.toLowerCase()) : false) ||
           (item.beli_non_pt_id ? item.beli_non_pt_id.toLowerCase().includes(query.toLowerCase()) : false) ||
@@ -448,58 +454,59 @@ export default function GoodsReceiveNotesPage() {
 
           <div className="grid grid-cols-2 gap-4">
             {/* Received Date */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500">Date Received</label>
-              <input
+            <div className="space-y-1.5">
+              <Label htmlFor="tgl_terima">Date Received</Label>
+              <Input
+                id="tgl_terima"
                 type="date"
                 required
                 {...register("tgl_terima", { required: true })}
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-xs focus:outline-none"
               />
             </div>
 
             {/* Received Qty */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500">Qty Received (kg)</label>
-              <input
+            <div className="space-y-1.5">
+              <Label htmlFor="qty_terima_kg">Qty Received (kg)</Label>
+              <Input
+                id="qty_terima_kg"
                 type="number"
                 step="0.01"
                 required
                 placeholder="e.g. 500"
                 {...register("qty_terima_kg", { required: true, valueAsNumber: true })}
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-xs font-semibold focus:outline-none"
               />
             </div>
           </div>
 
           {/* Memo Remarks */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500">Delivery Notes (Memo)</label>
+          <div className="space-y-1.5">
+            <Label htmlFor="note">Delivery Notes (Memo)</Label>
             <textarea
+              id="note"
               {...register("note")}
               rows={2}
               placeholder="e.g. Received partial delivery of 20 bags, good condition..."
-              className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-xs focus:outline-none"
+              className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-xs focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
 
           {/* Form Actions */}
           <div className="pt-4 flex items-center justify-end gap-2 border-t border-border-custom">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setModalOpen(false)}
-              className="px-4 py-2 border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={actionLoading || (!selectedGrn && sortedPOs.length === 0)}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-semibold cursor-pointer flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5"
             >
               {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>{selectedGrn ? "Update Receipt" : "Create Receipt"}</span>
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>

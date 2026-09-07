@@ -5,6 +5,7 @@ import { useAppStore, Sale } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Table } from "@/components/Table";
 import { Modal } from "@/components/Modal";
+import { useTranslation } from "@/lib/i18n";
 import { useForm, useFieldArray } from "react-hook-form";
 import {
   Plus,
@@ -21,6 +22,19 @@ import {
   Eye,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface SaleItemInput {
   kode_unik?: string;
@@ -59,6 +73,7 @@ interface InvoiceFormInput {
 }
 
 export default function SalesPage() {
+  const { t, formatCurrency } = useTranslation();
   const { sales, customers, products, role, isMockMode, setSales } = useAppStore();
   const [data, setData] = useState<Sale[]>(sales);
   const [activeTab, setActiveTab] = useState<"pt" | "non-pt">("pt");
@@ -553,7 +568,7 @@ export default function SalesPage() {
 
   const columns = [
     {
-      header: "SJ / Invoice Code",
+      header: t.sales.invoiceNo,
       sortKey: "no_sj_inv" as keyof Sale,
       accessor: (item: Sale) => (
         <div className="flex flex-col text-left">
@@ -588,7 +603,7 @@ export default function SalesPage() {
       ),
     },
     {
-      header: "Date",
+      header: t.sales.date,
       sortKey: "tgl" as keyof Sale,
       accessor: (item: Sale) => (
         <div className="flex flex-col text-left">
@@ -600,7 +615,7 @@ export default function SalesPage() {
       ),
     },
     {
-      header: "Customer",
+      header: t.sales.customer,
       sortKey: "customer" as keyof Sale,
       accessor: (item: Sale) => (
         <div className="flex flex-col text-left">
@@ -610,7 +625,7 @@ export default function SalesPage() {
       ),
     },
     {
-      header: "Product / Qty",
+      header: `${t.sales.item} / ${t.sales.qtyKg}`,
       sortKey: "barang" as keyof Sale,
       accessor: (item: Sale) => (
         <div className="flex flex-col text-left">
@@ -622,28 +637,28 @@ export default function SalesPage() {
       ),
     },
     {
-      header: "Total (Inc PPN)",
+      header: t.sales.totalInc,
       sortKey: "total_include" as keyof Sale,
       accessor: (item: Sale) => (
         <span className="font-bold text-slate-850 dark:text-slate-150">
-          {formatRupiah(item.total_include)}
+          {formatCurrency(item.total_include)}
         </span>
       ),
     },
     {
-      header: "Paid / Bal.",
+      header: `${t.sales.paidAmount} / ${t.sales.remainingAmount}`,
       sortKey: "terbayar" as keyof Sale,
       accessor: (item: Sale) => (
         <div className="flex flex-col text-right">
-          <span className="font-semibold text-accent-green">{formatRupiah(item.terbayar)}</span>
+          <span className="font-semibold text-accent-green">{formatCurrency(item.terbayar)}</span>
           <span className="text-[10px] font-semibold text-accent-amber mt-0.5">
-            Sisa: {formatRupiah(item.sisa)}
+            {t.sales.remainingAmount}: {formatCurrency(item.sisa)}
           </span>
         </div>
       ),
     },
     {
-      header: "FP / Tempo",
+      header: `${t.sales.taxInvoice} / ${t.sales.tempoDays}`,
       sortKey: "tempo" as keyof Sale,
       accessor: (item: Sale) => (
         <div className="flex items-center gap-2">
@@ -656,25 +671,28 @@ export default function SalesPage() {
           >
             FP:{item.fp || "F"}
           </span>
-          <span className="text-xs text-slate-450 dark:text-slate-500">{item.tempo} days</span>
+          <span className="text-xs text-slate-450 dark:text-slate-500">{item.tempo} {t.dashboard.days}</span>
         </div>
       ),
     },
     {
-      header: "Status",
+      header: t.common.status,
       sortKey: "status_tempo" as keyof Sale,
-      accessor: (item: Sale) => (
-        <span
-          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider
-            ${
-              item.status_tempo === "Lunas"
-                ? "bg-emerald-500/10 border-emerald-500/20 text-accent-green"
-                : "bg-amber-500/10 border-amber-500/20 text-accent-amber"
-            }`}
-        >
-          {item.status_tempo}
-        </span>
-      ),
+      accessor: (item: Sale) => {
+        const isLunas = item.status_tempo === "Lunas";
+        return (
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider
+              ${
+                isLunas
+                  ? "bg-emerald-500/10 border-emerald-500/20 text-accent-green"
+                  : "bg-amber-500/10 border-amber-500/20 text-accent-amber"
+              }`}
+          >
+            {isLunas ? t.sales.paid : t.sales.unpaid}
+          </span>
+        );
+      },
     },
   ];
 
@@ -699,90 +717,74 @@ export default function SalesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
-            Sales Invoices Journal
+            {t.sales.title}
           </h1>
           <p className="text-xs text-slate-550 mt-0.5">
-            Manage transactions, tracking, and tax details of sales invoices.
+            {t.sales.subtitle}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={exportInvoiceListToExcel}
-            className="px-4 py-2.5 border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors shadow-sm"
+            className="flex items-center gap-2"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-            <span>Export Journal (.xlsx)</span>
-          </button>
+            <span>{t.common.export} (.xlsx)</span>
+          </Button>
 
-          <button
+          <Button
             onClick={openAddModal}
-            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-sm transition-colors"
+            className="flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            <span>Create Sales Invoice</span>
-          </button>
+            <span>{t.sales.addNew}</span>
+          </Button>
         </div>
       </div>
 
       {/* Tab Switcher */}
-      <div className="flex items-center border-b border-border-custom">
-        <button
-          onClick={() => setActiveTab("pt")}
-          className={`px-4 py-2.5 font-bold text-xs tracking-wide transition-colors relative cursor-pointer
-            ${activeTab === "pt" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
-        >
-          PT Invoices
-          {activeTab === "pt" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("non-pt")}
-          className={`px-4 py-2.5 font-bold text-xs tracking-wide transition-colors relative cursor-pointer
-            ${activeTab === "non-pt" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
-        >
-          Non-PT Invoices
-          {activeTab === "non-pt" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
-          )}
-        </button>
-      </div>
+      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "pt" | "non-pt")}>
+        <TabsList>
+          <TabsTrigger value="pt">PT Invoices</TabsTrigger>
+          <TabsTrigger value="non-pt">Non-PT Invoices</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Filter and controls */}
       <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-        <span className="text-xs text-slate-400 font-medium">Filter by Year:</span>
-        {["2022", "2023", "2024", "2025", "2026"].map((yr) => (
-          <button
-            key={yr}
-            onClick={() => setSelectedYear(yr)}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer border transition-colors
-              ${
-                selectedYear === yr
-                  ? "bg-primary-light text-primary border-primary/20"
-                  : "border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
-          >
-            {yr}
-          </button>
-        ))}
+        <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+        <span className="text-xs text-muted-foreground font-medium">{t.common.filter} Year:</span>
+        <div className="flex items-center gap-1.5">
+          {["2022", "2023", "2024", "2025", "2026"].map((yr) => (
+            <Button
+              key={yr}
+              size="sm"
+              variant={selectedYear === yr ? "default" : "outline"}
+              onClick={() => setSelectedYear(yr)}
+              className="h-7 px-3 text-xs"
+            >
+              {yr}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Messages */}
       {error && (
-        <div className="p-3.5 rounded-xl border bg-red-500/10 text-accent-red border-red-500/20 text-xs flex items-start gap-2.5">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {success && (
-        <div className="p-3.5 rounded-xl border bg-emerald-500/10 text-accent-green border-emerald-500/20 text-xs flex items-start gap-2.5">
-          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{success}</span>
-        </div>
+        <Alert className="border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
       )}
 
       {/* Table grid */}
@@ -868,108 +870,108 @@ export default function SalesPage() {
             </h4>
             
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">SJ Invoice Number</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="no_sj_inv">SJ Invoice Number</Label>
+                <Input
+                  id="no_sj_inv"
                   type="text"
                   required
                   readOnly={!!selectedInvoiceNumber}
                   placeholder="e.g. SLP/INV/0124/0001"
                   {...register("no_sj_inv")}
-                  className={`w-full px-3 py-2 border border-border-custom rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20
-                    ${selectedInvoiceNumber 
-                      ? "bg-slate-100 dark:bg-zinc-800/80 cursor-not-allowed text-slate-700 dark:text-slate-350" 
-                      : "bg-card-bg text-foreground"
-                    }`}
+                  className={selectedInvoiceNumber ? "cursor-not-allowed bg-muted text-muted-foreground" : ""}
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Date</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="tgl">Date</Label>
+                <Input
+                  id="tgl"
                   type="date"
                   required
                   {...register("tgl")}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Customer ID</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="cust_id">Customer ID</Label>
+                <Input
+                  id="cust_id"
                   type="text"
                   required
                   placeholder="Type or Select ID..."
                   list="sales-customers-list"
                   {...register("id", { required: true })}
                   onChange={(e) => handleCustomerChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Customer Name</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="customer_name">Customer Name</Label>
+                <Input
+                  id="customer_name"
                   type="text"
                   required
                   placeholder="Customer Name..."
                   {...register("customer", { required: true })}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Credit Terms (Days)</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="tempo">Credit Terms (Days)</Label>
+                <Input
+                  id="tempo"
                   type="number"
                   required
                   {...register("tempo", { valueAsNumber: true })}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Jatuh Tempo (Due Date)</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="jatuh_tempo">Jatuh Tempo (Due Date)</Label>
+                <Input
+                  id="jatuh_tempo"
                   type="date"
                   required
                   readOnly
                   {...register("jatuh_tempo")}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-slate-100 dark:bg-zinc-800/80 text-sm cursor-not-allowed text-slate-700 dark:text-slate-350"
+                  className="cursor-not-allowed bg-muted text-muted-foreground"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Faktur Pajak (FP)</label>
+              <div className="space-y-1.5">
+                <Label htmlFor="fp">Faktur Pajak (FP)</Label>
                 <select
+                  id="fp"
                   {...register("fp")}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full h-9 px-3 py-1 border border-input rounded-md bg-transparent text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-ring"
                 >
                   <option value="T">True (T)</option>
                   <option value="F">False (F)</option>
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Customer NPWP</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="npwp">Customer NPWP</Label>
+                <Input
+                  id="npwp"
                   type="text"
                   placeholder="NPWP"
                   {...register("npwp")}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500">Delivery Notes (Catatan)</label>
+            <div className="space-y-1.5">
+              <Label htmlFor="catatan">Delivery Notes (Catatan)</Label>
               <textarea
+                id="catatan"
                 {...register("catatan")}
                 rows={1.5}
                 placeholder="e.g. Kirim ke Gudang Utama..."
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
           </div>
@@ -1005,7 +1007,7 @@ export default function SalesPage() {
               </button>
             </div>
 
-            <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
               {fields.map((field, index) => {
                 const itemQty = Number(watchedItems?.[index]?.qty_kg) || 0;
                 const itemInc = Number(watchedItems?.[index]?.harga_inc) || 0;
@@ -1015,13 +1017,15 @@ export default function SalesPage() {
                 return (
                   <div
                     key={field.id}
-                    className="p-4 rounded-xl border border-border-custom bg-slate-50/50 dark:bg-zinc-900/30 space-y-3 relative"
+                    className="p-4 rounded-xl border border-border bg-card shadow-xs space-y-3 relative"
                   >
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-slate-400">Item #{index + 1}</span>
+                    <div className="flex justify-between items-center pb-1 border-b border-border/60">
+                      <span className="text-xs font-bold text-foreground">Item #{index + 1}</span>
                       {fields.length > 1 && (
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => {
                             const itemCode = watchedItems?.[index]?.kode_unik;
                             if (itemCode) {
@@ -1029,18 +1033,18 @@ export default function SalesPage() {
                             }
                             remove(index);
                           }}
-                          className="p-1 text-slate-400 hover:text-accent-red hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer transition-colors"
+                          className="text-muted-foreground hover:text-destructive h-7 w-7"
                           title="Remove item"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Product SKU (Type or Select)</label>
-                        <input
+                        <Label className="text-[11px]">Product SKU</Label>
+                        <Input
                           type="text"
                           required
                           placeholder="SKU"
@@ -1062,88 +1066,88 @@ export default function SalesPage() {
                               }
                             }
                           }}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                          className="h-8 text-xs font-mono"
                         />
                       </div>
                       
-                      <div className="space-y-1 col-span-2 sm:col-span-2">
-                        <label className="text-[10px] font-semibold text-slate-400">Product Name</label>
-                        <input
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-[11px]">Product Name</Label>
+                        <Input
                           type="text"
                           required
                           placeholder="Product Name"
                           {...register(`items.${index}.barang` as const, { required: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                          className="h-8 text-xs font-medium"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Kemasan (kg)</label>
-                        <input
+                        <Label className="text-[11px]">Kemasan (kg)</Label>
+                        <Input
                           type="number"
                           step="0.01"
                           required
                           placeholder="25"
                           {...register(`items.${index}.satuan_kemasan` as const, { valueAsNumber: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                          className="h-8 text-xs font-mono"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Quantity (kg)</label>
-                        <input
+                        <Label className="text-[11px]">Quantity (kg)</Label>
+                        <Input
                           type="number"
                           step="0.01"
                           required
                           placeholder="0"
                           {...register(`items.${index}.qty_kg` as const, { valueAsNumber: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                          className="h-8 text-xs font-mono font-semibold"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Price Inc. PPN (IDR)</label>
-                        <input
+                        <Label className="text-[11px]">Price Inc. PPN</Label>
+                        <Input
                           type="number"
                           step="0.01"
                           required
                           placeholder="0"
                           {...register(`items.${index}.harga_inc` as const, { valueAsNumber: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs font-semibold focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                          className="h-8 text-xs font-mono font-bold text-foreground"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Price Exc. PPN (IDR)</label>
-                        <div className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-slate-100 dark:bg-zinc-800 text-xs text-slate-500 font-medium">
+                        <Label className="text-[11px]">Price Exc. PPN</Label>
+                        <div className="h-8 px-2.5 flex items-center border border-input rounded-md bg-muted/50 text-xs font-mono text-muted-foreground">
                           {itemExc ? formatRupiah(itemExc) : "-"}
                         </div>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Row Total (Inc PPN)</label>
-                        <div className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-slate-100 dark:bg-zinc-800 text-xs font-bold text-foreground">
+                        <Label className="text-[11px]">Row Total (Inc)</Label>
+                        <div className="h-8 px-2.5 flex items-center border border-input rounded-md bg-muted/60 text-xs font-mono font-bold text-foreground">
                           {itemTotal ? formatRupiah(itemTotal) : "-"}
                         </div>
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-slate-400">Internal Row Remark (Catatan 2)</label>
-                      <input
+                      <Label className="text-[11px]">Internal Row Remark (Catatan 2)</Label>
+                      <Input
                         type="text"
                         placeholder="Internal notes for this item row..."
                         {...register(`items.${index}.catatan2` as const)}
-                        className="w-full px-2.5 py-1 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                        className="h-8 text-xs"
                       />
                     </div>
                   </div>
                 );
               })}
               {fields.length === 0 && (
-                <div className="text-center py-6 text-slate-400 border border-dashed border-border-custom rounded-xl">
+                <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-xl text-xs">
                   No items added. Click "Add Item Row" to list goods.
                 </div>
               )}
@@ -1221,21 +1225,21 @@ export default function SalesPage() {
 
           {/* Modal Actions */}
           <div className="pt-4 flex items-center justify-end gap-2 border-t border-border-custom">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setModalOpen(false)}
-              className="px-4 py-2 border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={actionLoading || !!invoiceLimitError}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm transition-colors"
+              className="flex items-center gap-1.5"
             >
               {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>{selectedInvoiceNumber ? "Update Invoice" : "Create Invoice"}</span>
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
@@ -1367,17 +1371,16 @@ export default function SalesPage() {
 
           {/* Close action */}
           <div className="pt-4 flex items-center justify-end border-t border-border-custom">
-            <button
+            <Button
               type="button"
               onClick={() => {
                 setViewModalOpen(false);
                 setViewInvoiceNo(null);
                 setViewByKodeUnik(false);
               }}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-semibold cursor-pointer shadow-sm transition-colors"
             >
               Close Details
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

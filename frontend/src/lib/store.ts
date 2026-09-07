@@ -97,6 +97,20 @@ export interface Payment {
   note: string | null;
 }
 
+export interface BankStatement {
+  id: string;
+  period_month: string;
+  tanggal_terima?: string | null;
+  tanggal: string;
+  keterangan: string;
+  masuk?: number | null;
+  keluar?: number | null;
+  account?: string | null; // "AR" | "AP" | "Biaya" | "Biaya PS" | "CB" | "Komisi"
+  saldo?: number | null;
+  no_invoice?: string | null;
+  created_at?: string;
+}
+
 export interface Vendor {
   vendor_id: string;
   vendor: string;
@@ -114,8 +128,11 @@ interface AppState {
   // Theme & UI state
   theme: "light" | "dark";
   sidebarCollapsed: boolean;
+  language: "en" | "id";
   toggleTheme: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  setLanguage: (lang: "en" | "id") => void;
+  toggleLanguage: () => void;
 
   // Mock Mode Toggle
   isMockMode: boolean;
@@ -493,6 +510,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Theme & UI States
   theme: getLocalStorage("slp_theme", "light"),
   sidebarCollapsed: false,
+  language: getLocalStorage("slp_language", "id") as "en" | "id",
   toggleTheme: () => {
     const nextTheme = get().theme === "light" ? "dark" : "light";
     set({ theme: nextTheme });
@@ -507,6 +525,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+  setLanguage: (lang) => {
+    set({ language: lang });
+    setLocalStorage("slp_language", lang);
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = lang;
+    }
+  },
+  toggleLanguage: () => {
+    const nextLang = get().language === "en" ? "id" : "en";
+    set({ language: nextLang });
+    setLocalStorage("slp_language", nextLang);
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = nextLang;
+    }
+  },
 
   // Mock Mode (toggled true by default unless overrides are met)
   isMockMode: getLocalStorage("slp_mock_mode", false),

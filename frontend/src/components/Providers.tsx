@@ -5,9 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import Sidebar from "./Sidebar";
 import { Menu } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { LanguageToggle } from "./LanguageToggle";
 
 // Create QueryClient
 const queryClient = new QueryClient({
@@ -25,6 +27,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const {
     user,
     theme,
+    language,
     setCustomers,
     setVendors,
     setProducts,
@@ -42,12 +45,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
     const root = document.documentElement;
+    root.lang = language;
     if (theme === "dark") {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
     }
-  }, [theme]);
+  }, [theme, language]);
 
   // Auth Routing Guard
   useEffect(() => {
@@ -118,50 +122,53 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {isPublicPage || isPrintPage ? (
-        children
-      ) : (
-        <div className="flex h-screen overflow-hidden bg-background">
-          {/* Mobile backdrop */}
-          {mobileSidebarOpen && (
-            <div
-              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-45 md:hidden"
-              onClick={() => setMobileSidebarOpen(false)}
-            />
-          )}
+      <TooltipProvider>
+        {isPublicPage || isPrintPage ? (
+          children
+        ) : (
+          <div className="flex h-screen overflow-hidden bg-background">
+            {/* Mobile backdrop */}
+            {mobileSidebarOpen && (
+              <div
+                className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-45 md:hidden"
+                onClick={() => setMobileSidebarOpen(false)}
+              />
+            )}
 
-          <Sidebar mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
+            <Sidebar mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
 
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            {/* Mobile Top Header */}
-            <header className="flex md:hidden items-center justify-between px-6 py-4 bg-sidebar-bg border-b border-sidebar-border z-20">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setMobileSidebarOpen(true)}
-                  className="p-1.5 rounded-lg border border-border-custom hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                >
-                  <Menu className="w-5 h-5" />
-                </button>
-                <div className="flex items-center gap-2 select-none">
-                  <div className="w-8 h-8 rounded-lg bg-zinc-950 dark:bg-zinc-50 flex items-center justify-center text-zinc-50 dark:text-zinc-950 font-bold text-base border border-zinc-200 dark:border-zinc-800">
-                    S
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+              {/* Mobile Top Header */}
+              <header className="flex md:hidden items-center justify-between px-6 py-4 bg-sidebar-bg border-b border-sidebar-border z-20">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setMobileSidebarOpen(true)}
+                    className="p-1.5 rounded-lg border border-border-custom hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </button>
+                  <div className="flex items-center gap-2 select-none">
+                    <div className="w-8 h-8 rounded-lg bg-zinc-950 dark:bg-zinc-50 flex items-center justify-center text-zinc-50 dark:text-zinc-950 font-bold text-base border border-zinc-200 dark:border-zinc-800">
+                      S
+                    </div>
+                    <span className="font-bold text-sm text-zinc-900 dark:text-zinc-50 tracking-tight">
+                      SLP ERP
+                    </span>
                   </div>
-                  <span className="font-bold text-sm text-zinc-900 dark:text-zinc-50 tracking-tight">
-                    SLP ERP
-                  </span>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <ThemeToggle />
-              </div>
-            </header>
+                <div className="flex items-center gap-2">
+                  <LanguageToggle />
+                  <ThemeToggle />
+                </div>
+              </header>
 
-            <main className="flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-10 relative">
-              {children}
-            </main>
+              <main className="flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-10 relative">
+                {children}
+              </main>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
+import { useTranslation } from "@/lib/i18n";
 import { ThemeToggle } from "./ThemeToggle";
+import { LanguageToggle } from "./LanguageToggle";
 import {
   LayoutDashboard,
   Users,
@@ -22,34 +24,49 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
-const navItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "master", "db_admin"] },
-  { name: "Customers", href: "/customers", icon: Users, roles: ["admin", "master", "db_admin"] },
-  { name: "Vendors", href: "/vendors", icon: Truck, roles: ["admin", "master", "db_admin"] },
-  { name: "Products", href: "/products", icon: ShoppingBag, roles: ["admin", "master", "db_admin"] },
-  { name: "Sales Invoices", href: "/sales", icon: FileText, roles: ["admin", "master", "db_admin"] },
-  { name: "Invoicing & Print", href: "/invoicing", icon: Printer, roles: ["admin", "master", "db_admin"] },
+interface NavItemDef {
+  key: keyof ReturnType<typeof useTranslation>["t"]["nav"];
+  href: string;
+  icon: any;
+  roles: ("admin" | "master" | "db_admin")[];
+}
+
+const navItems: NavItemDef[] = [
+  { key: "dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "master", "db_admin"] },
+  { key: "customers", href: "/customers", icon: Users, roles: ["admin", "master", "db_admin"] },
+  { key: "vendors", href: "/vendors", icon: Truck, roles: ["admin", "master", "db_admin"] },
+  { key: "products", href: "/products", icon: ShoppingBag, roles: ["admin", "master", "db_admin"] },
+  { key: "salesInvoices", href: "/sales", icon: FileText, roles: ["admin", "master", "db_admin"] },
+  { key: "invoicingPrint", href: "/invoicing", icon: Printer, roles: ["admin", "master", "db_admin"] },
   {
-    name: "Purchases PO",
+    key: "purchasesPO",
     href: "/purchases",
     icon: CreditCard,
     roles: ["master", "db_admin"],
   },
   {
-    name: "Goods Receive Notes",
+    key: "goodsReceiveNotes",
     href: "/goods-receive-notes",
     icon: Truck,
     roles: ["admin", "master", "db_admin"],
   },
   {
-    name: "Payments Ledger",
+    key: "paymentsLedger",
     href: "/payments",
     icon: Database,
-    roles: ["master", "db_admin"],
+    roles: ["admin", "master", "db_admin"],
   },
   {
-    name: "User Management",
+    key: "bankStatements",
+    href: "/bank-statements",
+    icon: CreditCard,
+    roles: ["admin", "master", "db_admin"],
+  },
+  {
+    key: "userManagement",
     href: "/users",
     icon: Users,
     roles: ["db_admin"],
@@ -62,6 +79,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
+  const { t } = useTranslation();
   const pathname = usePathname();
   const router = useRouter();
   const {
@@ -124,25 +142,29 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
 
           {/* Close drawer on mobile */}
           {onMobileClose && (
-            <button
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={onMobileClose}
-              className="md:hidden p-1 rounded-lg text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 hover:bg-slate-105 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              className="md:hidden"
             >
               <X className="w-5 h-5" />
-            </button>
+            </Button>
           )}
 
           {/* Toggle Sidebar Button (Desktop Only) */}
-          <button
+          <Button
+            variant="outline"
+            size="icon"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden md:flex absolute -right-3 top-7 w-6 h-6 rounded-full bg-sidebar-bg border border-sidebar-border items-center justify-center text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 cursor-pointer shadow-sm z-45 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="hidden md:flex absolute -right-3 top-7 w-6 h-6 rounded-full p-0 shadow-xs z-40"
           >
             {sidebarCollapsed ? (
               <ChevronRight className="w-3.5 h-3.5" />
             ) : (
               <ChevronLeft className="w-3.5 h-3.5" />
             )}
-          </button>
+          </Button>
         </div>
 
         {/* Navigation Items */}
@@ -150,10 +172,11 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           {visibleNavItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
+            const itemName = t.nav[item.key];
 
             return (
               <Link
-                key={item.name}
+                key={item.key}
                 href={item.href}
                 onClick={onMobileClose}
                 className="block relative"
@@ -172,9 +195,9 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                         ${isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-305"}`}
                     />
                     {!sidebarCollapsed && (
-                      <span className="text-sm truncate">{item.name}</span>
+                      <span className="text-sm truncate">{itemName}</span>
                     )}
-                    <span className="text-sm truncate md:hidden">{item.name}</span>
+                    <span className="text-sm truncate md:hidden">{itemName}</span>
                   </div>
                 </div>
                 {isActive && (
@@ -191,51 +214,53 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
       </div>
 
       {/* Bottom Panel */}
-      <div className="p-3 border-t border-sidebar-border space-y-3 bg-zinc-50/20 dark:bg-zinc-900/10">
+      <div className="p-3 border-t border-sidebar-border space-y-3 bg-muted/20">
         {/* Environment Settings Controls */}
         {showExtra && process.env.NEXT_PUBLIC_ALLOW_DEMO_SANDBOX === "true" && (
-          <div className="space-y-2.5 p-2.5 rounded-2xl bg-card-bg border border-card-border shadow-sm text-xs">
+          <div className="space-y-2.5 p-2.5 rounded-xl bg-card border border-border shadow-xs text-xs">
             {/* Mode switch */}
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-medium">Testing Mode:</span>
-              <button
+              <span className="text-muted-foreground font-medium text-xs">{t.common.testMode}:</span>
+              <Button
+                variant={isMockMode ? "secondary" : "default"}
+                size="xs"
                 onClick={() => setMockMode(!isMockMode)}
-                className={`px-2 py-1 rounded font-bold transition-all cursor-pointer text-[10px] uppercase tracking-wider border
-                  ${
-                    isMockMode
-                      ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-250 dark:border-zinc-750"
-                      : "bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-950 border-transparent"
-                  }`}
+                className="text-[10px] tracking-wider uppercase font-semibold h-6"
               >
-                {isMockMode ? "Mock Cache" : "API Client"}
-              </button>
+                {isMockMode ? t.common.mockMode : t.common.apiClient}
+              </Button>
             </div>
 
             {/* Role Switch */}
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-medium">Session Role:</span>
-              <button
+              <span className="text-muted-foreground font-medium text-xs">{t.common.sessionRole}:</span>
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={toggleRole}
-                className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer font-bold"
+                className="h-6 px-1.5 font-bold flex items-center gap-1 hover:text-primary"
               >
                 <Shield className="w-3.5 h-3.5 text-primary shrink-0" />
-                <span className="capitalize text-zinc-800 dark:text-zinc-250">{role}</span>
-              </button>
+                <Badge variant="outline" className="capitalize text-[10px] py-0">
+                  {role}
+                </Badge>
+              </Button>
             </div>
           </div>
         )}
 
         {/* User Info & Settings Action */}
         <div className="flex items-center justify-between gap-2">
-          {/* Theme & Profile Details */}
-          <div className="flex items-center gap-2 overflow-hidden">
+          {/* Theme & Language & Profile Details */}
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            <LanguageToggle />
             <ThemeToggle />
             {showExtra && (
-              <div className="flex flex-col overflow-hidden text-left">
-                <span className="text-xs font-semibold truncate text-zinc-800 dark:text-zinc-200">
+              <div className="flex flex-col overflow-hidden text-left pl-1">
+                <span className="text-xs font-semibold truncate text-foreground">
                   {user?.email || "unknown@slp.id"}
                 </span>
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
                   {role}
                 </span>
               </div>
@@ -243,13 +268,15 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           </div>
 
           {/* Logout Action */}
-          <button
+          <Button
+            variant="outline"
+            size="icon"
             onClick={handleLogout}
-            className="p-2.5 rounded-xl border border-card-border bg-card-bg text-slate-400 hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer flex items-center justify-center shadow-sm"
-            title="Log Out"
+            className="rounded-xl text-muted-foreground hover:text-foreground shadow-xs shrink-0"
+            title={t.common.logout}
           >
-            <LogOut className="w-5 h-5" />
-          </button>
+            <LogOut className="w-4 h-4" />
+          </Button>
         </div>
       </div>
     </aside>
