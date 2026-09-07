@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAppStore, Sale, Purchase } from "@/lib/store";
 import { api } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 import {
   FileText,
   Printer,
@@ -10,6 +11,11 @@ import {
   AlertCircle,
   ClipboardList,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 const DEFAULT_VEHICLES = [
   { plate: "B 9608 BRV", label: "B 9608 BRV (Truck)" },
@@ -18,6 +24,7 @@ const DEFAULT_VEHICLES = [
 ];
 
 export default function InvoicingPage() {
+  const { t, formatCurrency } = useTranslation();
   const { sales, purchasesPT, purchasesNonPT, isMockMode, role } = useAppStore();
   const [activeCenterTab, setActiveCenterTab] = useState<"sales" | "purchases">("sales");
 
@@ -394,108 +401,95 @@ export default function InvoicingPage() {
     <div className="space-y-6 max-w-4xl mx-auto font-sans">
       {/* Header */}
       <div className="border-b border-border-custom pb-5">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Invoicing & Print Center</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.invoicing.title}</h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Select, preview, and generate print documents for corporate Sales Invoices, Surat Jalan, and Purchase Orders.
+          {t.invoicing.subtitle}
         </p>
       </div>
 
       {/* Tab Switcher (Only visible for Master account holders since PO is master-only) */}
       {role === "master" && (
-        <div className="flex items-center border-b border-border-custom">
-          <button
-            onClick={() => handleTabChange("sales")}
-            className={`px-4 py-2.5 font-bold text-xs tracking-wide transition-colors relative cursor-pointer
-              ${activeCenterTab === "sales" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
-          >
-            Sales Invoices
-            {activeCenterTab === "sales" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
-            )}
-          </button>
-          <button
-            onClick={() => handleTabChange("purchases")}
-            className={`px-4 py-2.5 font-bold text-xs tracking-wide transition-colors relative cursor-pointer
-              ${activeCenterTab === "purchases" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
-          >
-            Purchase Orders (PO)
-            {activeCenterTab === "purchases" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
-            )}
-          </button>
-        </div>
+        <Tabs value={activeCenterTab} onValueChange={(val) => handleTabChange(val as "sales" | "purchases")}>
+          <TabsList>
+            <TabsTrigger value="sales">{t.invoicing.salesTab}</TabsTrigger>
+            <TabsTrigger value="purchases">{t.invoicing.purchasesTab}</TabsTrigger>
+          </TabsList>
+        </Tabs>
       )}
 
       {error && (
-        <div className="p-3.5 rounded-xl border bg-red-500/10 text-accent-red border-red-500/20 text-xs flex items-start gap-2.5">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Selector Column */}
-        <div className="border border-border-custom bg-card-bg p-6 rounded-2xl shadow-sm space-y-4 h-fit">
-          <h3 className="font-bold text-sm text-foreground">
-            {activeCenterTab === "sales" ? "Select Invoice" : "Select Purchase Order"}
-          </h3>
-
-          {/* Year Selector Pills */}
-          <div className="space-y-1.5 pb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Filter by Year:
-            </span>
-            <div className="flex flex-wrap gap-1">
-              {(activeCenterTab === "sales" ? salesYears : poYears).map((yr) => (
-                <button
-                  key={yr}
-                  onClick={() => {
-                    if (activeCenterTab === "sales") {
-                      setSelectedSalesYear(yr);
-                    } else {
-                      setSelectedPoYear(yr);
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                    (activeCenterTab === "sales" ? selectedSalesYear : selectedPoYear) === yr
-                      ? "bg-zinc-950 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 border-zinc-950 dark:border-zinc-50 shadow-sm"
-                      : "border-border-custom text-slate-450 hover:text-foreground hover:border-zinc-450 bg-card-bg"
-                  }`}
-                >
-                  {yr}
-                </button>
-              ))}
-              {(activeCenterTab === "sales" ? salesYears : poYears).length === 0 && (
-                <span className="text-[10px] text-slate-400 italic">No years available</span>
-              )}
+        <Card className="h-fit">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold">
+              {activeCenterTab === "sales" ? t.invoicing.selectSalesInvoice : t.invoicing.selectPurchaseOrder}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Year Selector Pills */}
+            <div className="space-y-1.5 pb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                {t.common.filter} Year:
+              </span>
+              <div className="flex flex-wrap gap-1">
+                {(activeCenterTab === "sales" ? salesYears : poYears).map((yr) => {
+                  const isSelected = (activeCenterTab === "sales" ? selectedSalesYear : selectedPoYear) === yr;
+                  return (
+                    <Button
+                      key={yr}
+                      size="sm"
+                      variant={isSelected ? "default" : "outline"}
+                      onClick={() => {
+                        if (activeCenterTab === "sales") {
+                          setSelectedSalesYear(yr);
+                        } else {
+                          setSelectedPoYear(yr);
+                        }
+                      }}
+                      className="h-7 px-2.5 text-xs font-semibold"
+                    >
+                      {yr}
+                    </Button>
+                  );
+                })}
+                {(activeCenterTab === "sales" ? salesYears : poYears).length === 0 && (
+                  <span className="text-[10px] text-muted-foreground italic">No years available</span>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder={activeCenterTab === "sales" ? "Search Invoice ID / Customer..." : "Search PO No / Vendor..."}
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                if (activeCenterTab === "sales") {
-                  if (selectedInvoiceNo && selectedInvoiceNo !== e.target.value) {
-                    setSelectedInvoiceNo("");
-                    setMatchingInvoiceItems([]);
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder={activeCenterTab === "sales" ? t.invoicing.searchSalesPlaceholder : t.invoicing.searchPurchasesPlaceholder}
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (activeCenterTab === "sales") {
+                    if (selectedInvoiceNo && selectedInvoiceNo !== e.target.value) {
+                      setSelectedInvoiceNo("");
+                      setMatchingInvoiceItems([]);
+                    }
+                  } else {
+                    if (selectedPoNo && selectedPoNo !== e.target.value) {
+                      setSelectedPoNo("");
+                      setMatchingPoItems([]);
+                    }
                   }
-                } else {
-                  if (selectedPoNo && selectedPoNo !== e.target.value) {
-                    setSelectedPoNo("");
-                    setMatchingPoItems([]);
-                  }
-                }
-              }}
-              className="w-full pl-9 pr-4 py-2 border border-border-custom rounded-xl bg-card-bg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400"
-            />
-          </div>
+                }}
+                className="pl-9 text-xs"
+              />
+            </div>
 
           {/* Matches List */}
           <div className="border border-border-custom rounded-xl max-h-[300px] overflow-y-auto divide-y divide-border-custom bg-card-bg/40">
@@ -514,7 +508,7 @@ export default function InvoicingPage() {
                 ))}
                 {filteredInvoiceNumbers.length === 0 && (
                   <div className="p-4 text-center text-slate-450 text-[10px]">
-                    No invoices found
+                    {t.common.noMatchingRecords}
                   </div>
                 )}
               </>
@@ -533,13 +527,14 @@ export default function InvoicingPage() {
                 ))}
                 {filteredPoNumbers.length === 0 && (
                   <div className="p-4 text-center text-slate-450 text-[10px]">
-                    No purchase orders found
+                    {t.common.noMatchingRecords}
                   </div>
                 )}
               </>
             )}
           </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Action Panel and Document Preview */}
         <div className="md:col-span-2 space-y-6">
@@ -548,12 +543,12 @@ export default function InvoicingPage() {
               <div className="space-y-6">
                 {/* Document Actions Card */}
                 <div className="border border-border-custom bg-card-bg p-6 rounded-2xl shadow-sm space-y-4">
-                  <h3 className="font-bold text-sm text-foreground">Print Options</h3>
+                  <h3 className="font-bold text-sm text-foreground">{t.invoicing.actions}</h3>
                   
                   {/* Vehicle selection dropdown */}
                   <div className="space-y-2 border-b border-border-custom/50 pb-4">
                     <label className="block text-[11px] font-bold text-slate-400">
-                      Surat Jalan Vehicle / License Plate
+                      {t.invoicing.selectVehicle}
                     </label>
                     <div className="flex flex-col gap-2.5">
                       <select
@@ -566,46 +561,49 @@ export default function InvoicingPage() {
                             {v.label}
                           </option>
                         ))}
-                        <option value="__new__">+ Add Custom / New Vehicle...</option>
+                        <option value="__new__">+ {t.invoicing.addCustomVehicle}...</option>
                       </select>
                       
                       {showCustomInput && (
                         <div className="p-3 border border-border-custom/80 rounded-xl bg-slate-50/55 dark:bg-zinc-900/55 space-y-3">
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Add New Vehicle</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t.invoicing.addCustomVehicle}</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <input
+                            <Input
                               type="text"
-                              placeholder="Plate (e.g. B 1234 XYZ)"
+                              placeholder={`${t.invoicing.vehiclePlate} (e.g. B 1234 XYZ)`}
                               value={customPlate}
                               onChange={(e) => setCustomPlate(e.target.value)}
-                              className="px-3 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase font-mono"
+                              className="h-8 text-xs uppercase font-mono"
                             />
-                            <input
+                            <Input
                               type="text"
-                              placeholder="Name/Type (e.g. Avanza)"
+                              placeholder={`${t.invoicing.vehicleLabel} (e.g. Avanza)`}
                               value={customLabel}
                               onChange={(e) => setCustomLabel(e.target.value)}
-                              className="px-3 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                              className="h-8 text-xs"
                             />
                           </div>
                           <div className="flex justify-end gap-2 pt-1">
-                            <button
+                            <Button
                               type="button"
+                              size="sm"
+                              variant="outline"
                               onClick={() => {
                                 setShowCustomInput(false);
                                 setSelectedVehicle(vehicles[0]?.plate || DEFAULT_VEHICLES[0].plate);
                               }}
-                              className="px-3 py-1.5 border border-border-custom hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                              className="h-7 text-xs"
                             >
-                              Cancel
-                            </button>
-                            <button
+                              {t.common.cancel}
+                            </Button>
+                            <Button
                               type="button"
+                              size="sm"
                               onClick={handleAddCustomVehicle}
-                              className="px-3 py-1.5 bg-primary hover:bg-primary/95 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                              className="h-7 text-xs"
                             >
-                              Save Vehicle
-                            </button>
+                              {t.common.save}
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -622,8 +620,8 @@ export default function InvoicingPage() {
                         <Printer className="w-4 h-4" />
                       </div>
                       <div>
-                        <h4 className="text-xs font-bold text-foreground">Faktur Penjualan</h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Corporate Sales Invoice template.</p>
+                        <h4 className="text-xs font-bold text-foreground">{t.invoicing.printFaktur}</h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5 font-medium">{t.sales.printFaktur}</p>
                       </div>
                     </button>
 
@@ -636,8 +634,8 @@ export default function InvoicingPage() {
                         <FileText className="w-4 h-4" />
                       </div>
                       <div>
-                        <h4 className="text-xs font-bold text-foreground">Surat Jalan + Tanda Terima</h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5 font-medium font-sans">Delivery Order with Acknowledgement.</p>
+                        <h4 className="text-xs font-bold text-foreground">{t.invoicing.printSuratJalan}</h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5 font-medium font-sans">{t.sales.printSJ}</p>
                       </div>
                     </button>
                   </div>
@@ -647,19 +645,19 @@ export default function InvoicingPage() {
                 <div className="border border-border-custom bg-card-bg p-6 rounded-2xl shadow-sm space-y-4">
                   <div className="flex items-center gap-2 border-b border-border-custom pb-3">
                     <ClipboardList className="w-4.5 h-4.5 text-slate-450" />
-                    <h3 className="font-bold text-sm text-foreground">Invoice Database Records</h3>
+                    <h3 className="font-bold text-sm text-foreground">{t.invoicing.previewDocument}</h3>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <p className="text-slate-450 font-semibold">Customer:</p>
+                      <p className="text-slate-450 font-semibold">{t.invoicing.customer}:</p>
                       <p className="font-bold text-foreground mt-0.5">{firstInvoiceItem?.customer}</p>
                       <p className="text-[10px] text-slate-400 font-mono">ID: {firstInvoiceItem?.id}</p>
                     </div>
                     <div>
-                      <p className="text-slate-450 font-semibold">Date issued:</p>
+                      <p className="text-slate-450 font-semibold">{t.invoicing.invoiceDate}:</p>
                       <p className="font-bold text-foreground mt-0.5">{firstInvoiceItem?.tgl}</p>
-                      <p className="text-[10px] text-slate-400">Due date: {firstInvoiceItem?.jatuh_tempo}</p>
+                      <p className="text-[10px] text-slate-400">{t.sales.dueDate}: {firstInvoiceItem?.jatuh_tempo}</p>
                     </div>
                   </div>
 
@@ -668,10 +666,10 @@ export default function InvoicingPage() {
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="text-slate-450 uppercase tracking-wider font-semibold border-b border-border-custom bg-slate-50 dark:bg-zinc-900/50">
-                          <th className="py-2 px-3">Item SKU</th>
-                          <th className="py-2 px-3">Description</th>
-                          <th className="py-2 px-3 text-right">Qty (KG)</th>
-                          <th className="py-2 px-3 text-right">Price Exc. PPN</th>
+                          <th className="py-2 px-3">{t.products.productCode}</th>
+                          <th className="py-2 px-3">{t.products.productName}</th>
+                          <th className="py-2 px-3 text-right">{t.sales.qtyKg}</th>
+                          <th className="py-2 px-3 text-right">{t.sales.priceExc}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border-custom text-foreground font-medium">
@@ -680,7 +678,7 @@ export default function InvoicingPage() {
                             <td className="py-2.5 px-3 font-mono text-zinc-500">{item.kode_barang}</td>
                             <td className="py-2.5 px-3 font-semibold">{item.barang}</td>
                             <td className="py-2.5 px-3 text-right font-mono">{item.qty_kg?.toLocaleString("id-ID")} kg</td>
-                            <td className="py-2.5 px-3 text-right font-mono">{formatRupiah(item.harga_exc || 0)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(item.harga_exc || 0)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -688,18 +686,15 @@ export default function InvoicingPage() {
                   </div>
 
                   <div className="pt-3 border-t border-border-custom flex items-center justify-between text-xs font-bold">
-                    <span className="text-slate-400">Aggregated Invoice total:</span>
-                    <span className="text-foreground text-sm font-black">{formatRupiah(invoiceGrandTotal)}</span>
+                    <span className="text-slate-400">{t.sales.totalInc}:</span>
+                    <span className="text-foreground text-sm font-black">{formatCurrency(invoiceGrandTotal)}</span>
                   </div>
                 </div>
               </div>
             ) : (
               <div className="border border-dashed border-border-custom p-12 rounded-2xl flex flex-col items-center justify-center text-center min-h-[300px] text-slate-450 bg-card-bg/20">
                 <FileText className="w-10 h-10 mb-4 text-slate-350" />
-                <p className="text-xs font-bold text-foreground">No Invoice Selected</p>
-                <p className="text-[10px] text-slate-400 mt-1 max-w-xs font-medium">
-                  Select or type an invoice number from the left panel to load the database records and preview the print options.
-                </p>
+                <p className="text-xs font-bold text-foreground">{t.invoicing.noItemsSelected}</p>
               </div>
             )
           ) : (
@@ -707,7 +702,7 @@ export default function InvoicingPage() {
               <div className="space-y-6">
                 {/* PO Document Actions Card */}
                 <div className="border border-border-custom bg-card-bg p-6 rounded-2xl shadow-sm space-y-4">
-                  <h3 className="font-bold text-sm text-foreground">Print Options</h3>
+                  <h3 className="font-bold text-sm text-foreground">{t.invoicing.actions}</h3>
                   <div className="grid grid-cols-1 gap-4">
                     {/* Print Purchase Order Button */}
                     <button
@@ -718,8 +713,8 @@ export default function InvoicingPage() {
                         <Printer className="w-4 h-4" />
                       </div>
                       <div>
-                        <h4 className="text-xs font-bold text-foreground">Print Purchase Order</h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Official corporate Purchase Order printout template.</p>
+                        <h4 className="text-xs font-bold text-foreground">{t.invoicing.printPurchaseOrder}</h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5 font-medium">{t.purchases.title}</p>
                       </div>
                     </button>
                   </div>
@@ -729,19 +724,19 @@ export default function InvoicingPage() {
                 <div className="border border-border-custom bg-card-bg p-6 rounded-2xl shadow-sm space-y-4">
                   <div className="flex items-center gap-2 border-b border-border-custom pb-3">
                     <ClipboardList className="w-4.5 h-4.5 text-slate-450" />
-                    <h3 className="font-bold text-sm text-foreground">PO Database Records</h3>
+                    <h3 className="font-bold text-sm text-foreground">{t.invoicing.previewDocument}</h3>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <p className="text-slate-450 font-semibold">Vendor / Supplier:</p>
+                      <p className="text-slate-450 font-semibold">{t.invoicing.vendor}:</p>
                       <p className="font-bold text-foreground mt-0.5">{firstPoItem?.vendor}</p>
-                      <p className="text-[10px] text-slate-400">Stream: {selectedPoTab === "pt" ? "PT Purchase" : "Non-PT Purchase"}</p>
+                      <p className="text-[10px] text-slate-400">{selectedPoTab === "pt" ? t.purchases.ptTab : t.purchases.nonPtTab}</p>
                     </div>
                     <div>
-                      <p className="text-slate-450 font-semibold">Date issued:</p>
+                      <p className="text-slate-450 font-semibold">{t.invoicing.poDate}:</p>
                       <p className="font-bold text-foreground mt-0.5">{firstPoItem?.tgl_po}</p>
-                      <p className="text-[10px] text-slate-400">Received date: {firstPoItem?.tgl_terima_barang || "-"}</p>
+                      <p className="text-[10px] text-slate-400">{t.purchases.receiveDate}: {firstPoItem?.tgl_terima_barang || "-"}</p>
                     </div>
                   </div>
 
@@ -750,11 +745,11 @@ export default function InvoicingPage() {
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="text-slate-450 uppercase tracking-wider font-semibold border-b border-border-custom bg-slate-50 dark:bg-zinc-900/50">
-                          <th className="py-2 px-3">Item SKU</th>
-                          <th className="py-2 px-3">Description</th>
-                          <th className="py-2 px-3 text-right">Qty (KG)</th>
-                          <th className="py-2 px-3 text-right">Unit Price</th>
-                          <th className="py-2 px-3 text-right">Row Total</th>
+                          <th className="py-2 px-3">{t.products.productCode}</th>
+                          <th className="py-2 px-3">{t.products.productName}</th>
+                          <th className="py-2 px-3 text-right">{t.purchases.qtyKg}</th>
+                          <th className="py-2 px-3 text-right">{t.purchases.unitPrice}</th>
+                          <th className="py-2 px-3 text-right">{t.purchases.totalAmount}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border-custom text-foreground font-medium">
@@ -766,8 +761,8 @@ export default function InvoicingPage() {
                               <td className="py-2.5 px-3 font-mono text-zinc-500">{item.kode_barang}</td>
                               <td className="py-2.5 px-3 font-semibold">{item.barang}</td>
                               <td className="py-2.5 px-3 text-right font-mono">{item.qty_kg?.toLocaleString("id-ID")} kg</td>
-                              <td className="py-2.5 px-3 text-right font-mono">{formatRupiah(unitPrice)}</td>
-                              <td className="py-2.5 px-3 text-right font-mono">{formatRupiah(rowTotal)}</td>
+                              <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(unitPrice)}</td>
+                              <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(rowTotal)}</td>
                             </tr>
                           );
                         })}
@@ -780,22 +775,22 @@ export default function InvoicingPage() {
                     {poHasPPN ? (
                       <>
                         <div className="flex items-center justify-between text-slate-450">
-                          <span>Subtotal (DPP):</span>
-                          <span className="font-semibold text-foreground font-mono">{formatRupiah(poTotalDPP)}</span>
+                          <span>Subtotal ({t.purchases.dpp}):</span>
+                          <span className="font-semibold text-foreground font-mono">{formatCurrency(poTotalDPP)}</span>
                         </div>
                         <div className="flex items-center justify-between text-slate-450">
-                          <span>PPN (11%):</span>
-                          <span className="font-semibold text-foreground font-mono">{formatRupiah(poTotalPPN)}</span>
+                          <span>{t.sales.ppn} (11%):</span>
+                          <span className="font-semibold text-foreground font-mono">{formatCurrency(poTotalPPN)}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs font-bold pt-1.5 border-t border-border-custom/50">
-                          <span className="text-slate-400">Grand Total (Inc. PPN):</span>
-                          <span className="text-foreground text-sm font-black font-mono">{formatRupiah(poTotalCost)}</span>
+                          <span className="text-slate-400">{t.sales.totalInc}:</span>
+                          <span className="text-foreground text-sm font-black font-mono">{formatCurrency(poTotalCost)}</span>
                         </div>
                       </>
                     ) : (
                       <div className="flex items-center justify-between text-xs font-bold">
-                        <span className="text-slate-400">PO Grand Total:</span>
-                        <span className="text-foreground text-sm font-black font-mono">{formatRupiah(poTotalCost)}</span>
+                        <span className="text-slate-400">{t.purchases.totalAmount}:</span>
+                        <span className="text-foreground text-sm font-black font-mono">{formatCurrency(poTotalCost)}</span>
                       </div>
                     )}
                   </div>
@@ -804,10 +799,7 @@ export default function InvoicingPage() {
             ) : (
               <div className="border border-dashed border-border-custom p-12 rounded-2xl flex flex-col items-center justify-center text-center min-h-[300px] text-slate-450 bg-card-bg/20">
                 <FileText className="w-10 h-10 mb-4 text-slate-350" />
-                <p className="text-xs font-bold text-foreground">No Purchase Order Selected</p>
-                <p className="text-[10px] text-slate-400 mt-1 max-w-xs font-medium">
-                  Select or type a purchase order number from the left panel to load the database records and preview the print options.
-                </p>
+                <p className="text-xs font-bold text-foreground">{t.invoicing.noItemsSelected}</p>
               </div>
             )
           )}

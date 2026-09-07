@@ -2,6 +2,7 @@
 
 import { useAppStore, Product, Sale, Purchase } from "@/lib/store";
 import { api } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -37,6 +38,17 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
 
 // Dynamic stock calculation helper
 function calculateStock(
@@ -67,6 +79,7 @@ function calculateStock(
 }
 
 export default function Dashboard() {
+  const { t, formatCurrency, formatNumber, formatDate } = useTranslation();
   const router = useRouter();
   const {
     sales,
@@ -268,11 +281,7 @@ export default function Dashboard() {
   // Visual analytics calculations reverted
 
   const formatRupiah = (num: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(num);
+    return formatCurrency(num);
   };
 
   const handleStockInputChange = (code: string, value: string) => {
@@ -384,32 +393,32 @@ export default function Dashboard() {
     ...(isMaster
       ? [
           {
-            title: "Total Invoiced Sales",
-            value: formatRupiah(totalSales),
+            title: t.dashboard.totalSales,
+            value: formatCurrency(totalSales),
             icon: TrendingUp,
-            description: "Aggregated sales ledger totals",
+            description: t.dashboard.totalSales,
           },
         ]
       : []),
     {
-      title: "Active Customers",
+      title: t.dashboard.activeCustomers,
       value: customers.length.toString(),
       icon: Users,
-      description: "Partner records in database",
+      description: t.dashboard.activeCustomers,
     },
     {
-      title: "Products Catalogue",
+      title: t.dashboard.activeProducts,
       value: products.length.toString(),
       icon: ShoppingBag,
-      description: "Unique SKUs and configurations",
+      description: t.dashboard.activeProducts,
     },
     ...(isMaster
       ? [
           {
-            title: "Remaining Receivables",
-            value: formatRupiah(totalRemaining),
+            title: t.dashboard.outstandingReceivables,
+            value: formatCurrency(totalRemaining),
             icon: CreditCard,
-            description: `Out of ${formatRupiah(totalSales)} invoiced`,
+            description: `${t.dashboard.outstandingReceivables}: ${formatCurrency(totalRemaining)}`,
           },
         ]
       : []),
@@ -421,12 +430,10 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-custom pb-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            {isMaster ? "ERP Master Dashboard" : "ERP Invoicing Console"}
+            {t.dashboard.title}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-            {isMaster
-              ? "Financial health overview, purchase matching, and payments control."
-              : "Create customer invoices, print delivery notes (SJ), and update registry."}
+            {t.dashboard.subtitle}
           </p>
         </div>
         <div className="flex items-center gap-2 text-[11px] font-semibold">
@@ -436,10 +443,10 @@ export default function Dashboard() {
                 isMockMode ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
               }`}
             />
-            {isMockMode ? "Mock Sandbox" : "API Live"}
+            {isMockMode ? t.common.mockMode : t.common.apiClient}
           </span>
           <span className="px-2.5 py-1 rounded-md border border-border-custom bg-card-bg text-foreground uppercase tracking-wider">
-            Role: {role}
+            {t.common.role}: {role}
           </span>
         </div>
       </div>
@@ -454,25 +461,28 @@ export default function Dashboard() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.04 }}
-              className="border border-border-custom bg-card-bg p-5 flex flex-col justify-between rounded-xl shadow-sm hover:border-zinc-400 dark:hover:border-zinc-650 transition-colors"
             >
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    {card.title}
-                  </span>
-                  <h3 className="text-xl font-bold text-foreground mt-0.5">
-                    {card.value}
-                  </h3>
-                </div>
-                <div className="p-2 border border-border-custom rounded-lg bg-slate-50 dark:bg-zinc-900 text-foreground shrink-0">
-                  <Icon className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-border-custom text-[11px] text-slate-400 flex items-center justify-between">
-                <span>{card.description}</span>
-                <ArrowUpRight className="w-3 h-3 text-slate-400" />
-              </div>
+              <Card className="flex flex-col justify-between h-full hover:border-zinc-400 dark:hover:border-zinc-650 transition-colors">
+                <CardHeader className="flex flex-row items-start justify-between pb-2 space-y-0">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {card.title}
+                    </span>
+                    <CardTitle className="text-xl font-bold">
+                      {card.value}
+                    </CardTitle>
+                  </div>
+                  <div className="p-2 border border-border rounded-lg bg-muted text-foreground shrink-0">
+                    <Icon className="w-4 h-4" />
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-2">
+                  <div className="pt-3 border-t border-border text-[11px] text-muted-foreground flex items-center justify-between">
+                    <span>{card.description}</span>
+                    <ArrowUpRight className="w-3 h-3 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
             </motion.div>
           );
         })}
@@ -490,15 +500,15 @@ export default function Dashboard() {
                 <div className="space-y-1">
                   <h3 className="font-bold text-base text-foreground flex items-center gap-2">
                     <FileText className="w-5 h-5 text-rose-500" />
-                    Customer Accounts Receivable (AR)
+                    {t.dashboard.customerOutstanding}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Monitor outstanding customer invoices grouped by entity with aging details.
+                    {t.dashboard.customerOutstandingDesc}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-455 border border-rose-500/20 font-mono">
-                    Total AR: {formatRupiah(totalOutstandingBalance)}
+                    {t.dashboard.outstandingReceivables}: {formatCurrency(totalOutstandingBalance)}
                   </span>
                 </div>
               </div>
@@ -506,55 +516,55 @@ export default function Dashboard() {
               {/* Receivables Aging Stacked Progress Bar */}
               <div className="space-y-2.5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-900/10 border border-border-custom/80">
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  <span>Receivables Aging Distribution</span>
-                  <span className="text-rose-500 font-mono font-bold">Overdue AR: {formatRupiah(totalOverdueBalance)}</span>
+                  <span>{t.dashboard.receivablesAging}</span>
+                  <span className="text-rose-500 font-mono font-bold">{t.dashboard.overdue}: {formatCurrency(totalOverdueBalance)}</span>
                 </div>
                 <div className="w-full h-3 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden flex shadow-inner">
                   {agingBuckets.pctCurrent > 0 && (
                     <div
                       style={{ width: `${agingBuckets.pctCurrent}%` }}
                       className="bg-emerald-500 h-full transition-all duration-550"
-                      title={`Current: ${formatRupiah(agingBuckets.current)} (${agingBuckets.pctCurrent.toFixed(1)}%)`}
+                      title={`${t.dashboard.currentDue}: ${formatCurrency(agingBuckets.current)} (${agingBuckets.pctCurrent.toFixed(1)}%)`}
                     />
                   )}
                   {agingBuckets.pct1_30 > 0 && (
                     <div
                       style={{ width: `${agingBuckets.pct1_30}%` }}
                       className="bg-amber-400 h-full transition-all duration-550"
-                      title={`1-30 Days: ${formatRupiah(agingBuckets.late1_30)} (${agingBuckets.pct1_30.toFixed(1)}%)`}
+                      title={`${t.dashboard.daysLate1_30}: ${formatCurrency(agingBuckets.late1_30)} (${agingBuckets.pct1_30.toFixed(1)}%)`}
                     />
                   )}
                   {agingBuckets.pct31_60 > 0 && (
                     <div
                       style={{ width: `${agingBuckets.pct31_60}%` }}
                       className="bg-orange-500 h-full transition-all duration-550"
-                      title={`31-60 Days: ${formatRupiah(agingBuckets.late31_60)} (${agingBuckets.pct31_60.toFixed(1)}%)`}
+                      title={`${t.dashboard.daysLate31_60}: ${formatCurrency(agingBuckets.late31_60)} (${agingBuckets.pct31_60.toFixed(1)}%)`}
                     />
                   )}
                   {agingBuckets.pct61_plus > 0 && (
                     <div
                       style={{ width: `${agingBuckets.pct61_plus}%` }}
                       className="bg-rose-600 h-full transition-all duration-550"
-                      title={`61+ Days: ${formatRupiah(agingBuckets.late61_plus)} (${agingBuckets.pct61_plus.toFixed(1)}%)`}
+                      title={`${t.dashboard.daysLate61Plus}: ${formatCurrency(agingBuckets.late61_plus)} (${agingBuckets.pct61_plus.toFixed(1)}%)`}
                     />
                   )}
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded bg-emerald-500 shrink-0" />
-                    <span>Current: {formatRupiah(agingBuckets.current)}</span>
+                    <span>{t.dashboard.currentDue}: {formatCurrency(agingBuckets.current)}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded bg-amber-400 shrink-0" />
-                    <span>1-30 Days: {formatRupiah(agingBuckets.late1_30)}</span>
+                    <span>{t.dashboard.daysLate1_30}: {formatCurrency(agingBuckets.late1_30)}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded bg-orange-500 shrink-0" />
-                    <span>31-60 Days: {formatRupiah(agingBuckets.late31_60)}</span>
+                    <span>{t.dashboard.daysLate31_60}: {formatCurrency(agingBuckets.late31_60)}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded bg-rose-600 shrink-0" />
-                    <span>61+ Days: {formatRupiah(agingBuckets.late61_plus)}</span>
+                    <span>{t.dashboard.daysLate61Plus}: {formatCurrency(agingBuckets.late61_plus)}</span>
                   </div>
                 </div>
               </div>
@@ -565,7 +575,7 @@ export default function Dashboard() {
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search by customer name or invoice number..."
+                    placeholder={t.dashboard.searchCustomerInvoice}
                     value={invoiceSearch}
                     onChange={(e) => setInvoiceSearch(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 rounded-xl border border-border-custom bg-card-bg text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-zinc-405"
@@ -578,8 +588,8 @@ export default function Dashboard() {
                     onChange={(e) => setCustomerSortBy(e.target.value as any)}
                     className="px-2.5 py-2 border border-border-custom rounded-xl bg-card-bg text-foreground text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-zinc-405"
                   >
-                    <option value="outstanding">Sort: Highest Debt</option>
-                    <option value="name">Sort: Alphabetical</option>
+                    <option value="outstanding">{t.dashboard.sortByOutstanding}</option>
+                    <option value="name">{t.dashboard.sortByName}</option>
                   </select>
 
                   <div className="flex rounded-xl border border-border-custom bg-card-bg p-0.5 overflow-hidden">
@@ -593,7 +603,7 @@ export default function Dashboard() {
                             : "text-slate-400 hover:text-foreground"
                         }`}
                       >
-                        {mode}
+                        {mode === "all" ? t.dashboard.allInvoices : mode === "overdue" ? t.dashboard.overdueOnly : t.dashboard.pendingOnly}
                       </button>
                     ))}
                   </div>
@@ -606,16 +616,16 @@ export default function Dashboard() {
                   const isExpanded = expandedCustomers[cust.customerName];
                   
                   // Get Worst Aging Label
-                  let worstAgingLabel = "Current";
+                  let worstAgingLabel = t.dashboard.currentDue;
                   let badgeColor = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
                   if (cust.worstAgingDays > 60) {
-                    worstAgingLabel = `Overdue (60+ days)`;
+                    worstAgingLabel = `${t.dashboard.overdue} (60+ ${t.dashboard.days})`;
                     badgeColor = "bg-red-500/10 text-rose-600 dark:text-rose-455 border-red-500/20 animate-pulse";
                   } else if (cust.worstAgingDays > 30) {
-                    worstAgingLabel = `Overdue (31-60 days)`;
+                    worstAgingLabel = `${t.dashboard.overdue} (31-60 ${t.dashboard.days})`;
                     badgeColor = "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20";
                   } else if (cust.worstAgingDays > 0) {
-                    worstAgingLabel = `Overdue (1-30 days)`;
+                    worstAgingLabel = `${t.dashboard.overdue} (1-30 ${t.dashboard.days})`;
                     badgeColor = "bg-amber-500/10 text-amber-600 dark:text-amber-455 border-amber-500/20";
                   }
 
@@ -651,7 +661,7 @@ export default function Dashboard() {
                             </div>
                             {cust.totalOverdue > 0 && (
                               <div className="text-[9px] text-rose-500 font-semibold">
-                                Overdue: {formatRupiah(cust.totalOverdue)}
+                                {t.dashboard.overdue}: {formatCurrency(cust.totalOverdue)}
                               </div>
                             )}
                           </div>
@@ -672,11 +682,11 @@ export default function Dashboard() {
                             <table className="w-full text-left text-xs border-collapse min-w-[600px]">
                               <thead>
                                 <tr className="text-slate-400 font-semibold border-b border-border-custom uppercase tracking-wider text-[10px] pb-2">
-                                  <th className="py-2">Invoice Details</th>
-                                  <th className="py-2">Due Status</th>
-                                  <th className="py-2 text-center">Collection Ratio</th>
-                                  <th className="py-2 text-right">Balance Due</th>
-                                  <th className="py-2 text-center">Actions</th>
+                                  <th className="py-2">{t.sales.invoiceNo}</th>
+                                  <th className="py-2">{t.sales.dueDate}</th>
+                                  <th className="py-2 text-center">{t.sales.paymentStatus}</th>
+                                  <th className="py-2 text-right">{t.sales.remainingAmount}</th>
+                                  <th className="py-2 text-center">{t.common.actions}</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-border-custom/50 text-foreground">
@@ -692,7 +702,7 @@ export default function Dashboard() {
                                         <div className="font-mono font-bold text-zinc-550 dark:text-zinc-400">{inv.no_sj_inv}</div>
                                         <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
                                           <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                                          <span>Issued: {inv.tgl}</span>
+                                          <span>{t.common.date}: {inv.tgl}</span>
                                         </div>
                                       </td>
 
@@ -703,11 +713,11 @@ export default function Dashboard() {
                                           <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                                           {isOverdue ? (
                                             <span className="text-[9px] font-bold text-rose-600 dark:text-rose-455">
-                                              Overdue by {daysDiff} day{daysDiff > 1 ? "s" : ""}
+                                              {t.dashboard.overdue} ({daysDiff} {t.dashboard.days})
                                             </span>
                                           ) : (
                                             <span className="text-[9px] font-medium text-slate-400">
-                                              Due in {Math.abs(daysDiff)} day{Math.abs(daysDiff) > 1 ? "s" : ""}
+                                              {t.dashboard.dueIn} {Math.abs(daysDiff)} {t.dashboard.days}
                                             </span>
                                           )}
                                         </div>
@@ -717,8 +727,8 @@ export default function Dashboard() {
                                       <td className="py-2.5 px-4">
                                         <div className="w-28 mx-auto space-y-1">
                                           <div className="flex items-center justify-between text-[9px] font-bold text-slate-400">
-                                            <span>{pctPaid.toFixed(0)}% Paid</span>
-                                            <span>{formatRupiah(inv.terbayar)}</span>
+                                            <span>{pctPaid.toFixed(0)}% {t.sales.paid}</span>
+                                            <span>{formatCurrency(inv.terbayar)}</span>
                                           </div>
                                           <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-zinc-800 overflow-hidden shadow-inner">
                                             <div
@@ -731,9 +741,9 @@ export default function Dashboard() {
 
                                       {/* Balance Due info */}
                                       <td className="py-2.5 text-right font-medium">
-                                        <div className="font-bold text-rose-500">{formatRupiah(inv.sisa)}</div>
+                                        <div className="font-bold text-rose-500">{formatCurrency(inv.sisa)}</div>
                                         <div className="text-[9px] text-slate-400 mt-0.5">
-                                          Total: {formatRupiah(inv.total_include)}
+                                          {t.common.total}: {formatCurrency(inv.total_include)}
                                         </div>
                                       </td>
 
@@ -744,7 +754,7 @@ export default function Dashboard() {
                                           className="inline-flex items-center gap-1 px-2.5 py-1 border border-border-custom hover:border-zinc-400 rounded-lg text-[10px] font-semibold hover:bg-slate-100 dark:hover:bg-zinc-800 text-foreground transition-all cursor-pointer shadow-sm"
                                         >
                                           <Coins className="w-3 h-3 text-emerald-500" />
-                                          <span>Log Payment</span>
+                                          <span>{t.sales.recordPayment}</span>
                                           <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                                         </Link>
                                       </td>
@@ -762,7 +772,7 @@ export default function Dashboard() {
 
                 {customerBreakdown.length === 0 && (
                   <div className="py-12 text-center text-slate-400 italic border border-dashed border-border-custom rounded-xl">
-                    No customer accounts receivable outstanding matching filters.
+                    {t.dashboard.noOutstanding}
                   </div>
                 )}
               </div>
@@ -774,10 +784,10 @@ export default function Dashboard() {
               <div>
                 <h3 className="font-bold text-base text-foreground flex items-center gap-2">
                   <ShoppingBag className="w-5 h-5 text-emerald-500" />
-                  Inventory Stock Level Audit
+                  {t.dashboard.warehouseStock}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Monitor system-calculated inventory versus physical logged stock counts.
+                  {t.dashboard.warehouseStockDesc}
                 </p>
               </div>
 
@@ -786,10 +796,10 @@ export default function Dashboard() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 bg-card-bg z-10">
                     <tr className="text-slate-400 uppercase tracking-wider font-semibold border-b border-border-custom">
-                      <th className="py-2.5 px-3">Product</th>
-                      <th className="py-2.5 px-3 text-right">System Stock</th>
-                      <th className="py-2.5 px-3 text-right">Warehouse Logged</th>
-                      <th className="py-2.5 px-3 text-right">Discrepancy</th>
+                      <th className="py-2.5 px-3">{t.common.products}</th>
+                      <th className="py-2.5 px-3 text-right">{t.dashboard.calculatedStock}</th>
+                      <th className="py-2.5 px-3 text-right">{t.dashboard.physicalStock}</th>
+                      <th className="py-2.5 px-3 text-right">{t.common.status}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-custom text-foreground">
@@ -811,25 +821,25 @@ export default function Dashboard() {
                           <td className="py-3 px-3">
                             <div className="font-semibold">{p.nama_product}</div>
                             <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                              Code: {p.kode_product} | Packaging: {p.kemasan_kg} {p.unit}
+                              {p.kode_product} | {p.kemasan_kg} {p.unit}
                             </div>
                           </td>
                           <td className="py-3 px-3 text-right font-medium font-mono">
-                            <div>{sysStock.toLocaleString("id-ID")} kg</div>
+                            <div>{formatNumber(sysStock)} kg</div>
                             <div className="text-[10px] text-slate-400 font-sans">
-                              ≈ {Math.round(sysStock / (p.kemasan_kg || 1)).toLocaleString("id-ID")} {p.unit}
+                              ≈ {formatNumber(Math.round(sysStock / (p.kemasan_kg || 1)))} {p.unit}
                             </div>
                           </td>
                           <td className="py-3 px-3 text-right font-medium font-mono">
                             {hasLoggedCount ? (
                               <>
-                                <div>{currentLoggedVal.toLocaleString("id-ID")} kg</div>
+                                <div>{formatNumber(currentLoggedVal)} kg</div>
                                 <div className="text-[10px] text-slate-400 font-sans">
-                                  ≈ {Math.round(currentLoggedVal / (p.kemasan_kg || 1)).toLocaleString("id-ID")} {p.unit}
+                                  ≈ {formatNumber(Math.round(currentLoggedVal / (p.kemasan_kg || 1)))} {p.unit}
                                 </div>
                               </>
                             ) : (
-                              <span className="text-slate-400 italic text-[10px]">Unlogged</span>
+                              <span className="text-slate-400 italic text-[10px]">-</span>
                             )}
                           </td>
                           <td className="py-3 px-3 text-right font-semibold">
@@ -837,7 +847,7 @@ export default function Dashboard() {
                               diff === 0 ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-sans">
                                   <Check className="w-3 h-3" />
-                                  Matches
+                                  OK
                                 </span>
                               ) : (
                                 <div className="flex flex-col items-end">
@@ -846,15 +856,12 @@ export default function Dashboard() {
                                       ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" 
                                       : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
                                   }`}>
-                                    {diff! > 0 ? "+" : ""}{diff!.toLocaleString("id-ID")} kg
-                                  </span>
-                                  <span className="text-[9px] text-slate-400 mt-0.5 font-sans">
-                                    {diff! > 0 ? "Surplus" : "Shortage"}
+                                    {diff! > 0 ? "+" : ""}{formatNumber(diff!)} kg
                                   </span>
                                 </div>
                               )
                             ) : (
-                              <span className="text-slate-400 italic text-[10px] font-sans">No count logged</span>
+                              <span className="text-slate-400 italic text-[10px] font-sans">-</span>
                             )}
                           </td>
                         </tr>
@@ -877,9 +884,9 @@ export default function Dashboard() {
                 <div className="w-10 h-10 border border-border-custom rounded-lg flex items-center justify-center bg-slate-50 dark:bg-zinc-900 text-foreground">
                   <FileText className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-base text-foreground">Create Sales Invoice</h3>
+                <h3 className="font-bold text-base text-foreground">{t.dashboard.createNewInvoice}</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Log customer sales. Select products, input weight quantities, and invoice calculations will generate automatically.
+                  {t.sales.subtitle}
                 </p>
               </div>
               <div className="mt-6">
@@ -887,7 +894,7 @@ export default function Dashboard() {
                   href="/sales"
                   className="w-full text-center block py-2 rounded-xl bg-primary hover:bg-primary-hover text-background font-semibold text-xs transition-colors"
                 >
-                  Go to Sales Ledger
+                  {t.sales.title}
                 </Link>
               </div>
             </div>
@@ -897,9 +904,9 @@ export default function Dashboard() {
                 <div className="w-10 h-10 border border-border-custom rounded-lg flex items-center justify-center bg-slate-50 dark:bg-zinc-900 text-foreground">
                   <Printer className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-base text-foreground">Print Invoices & SJ</h3>
+                <h3 className="font-bold text-base text-foreground">{t.invoicing.title}</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Render invoices, Surat Jalan (Delivery Notes), and Tanda Terima for shipments in pre-formatted configurations.
+                  {t.invoicing.subtitle}
                 </p>
               </div>
               <div className="mt-6">
@@ -907,7 +914,7 @@ export default function Dashboard() {
                   href="/invoicing"
                   className="w-full text-center block py-2 rounded-xl bg-primary hover:bg-primary-hover text-background font-semibold text-xs transition-colors"
                 >
-                  Go to Print Center
+                  {t.invoicing.title}
                 </Link>
               </div>
             </div>
@@ -917,9 +924,9 @@ export default function Dashboard() {
                 <div className="w-10 h-10 border border-border-custom rounded-lg flex items-center justify-center bg-slate-50 dark:bg-zinc-900 text-foreground">
                   <Users className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-base text-foreground">Customers Directory</h3>
+                <h3 className="font-bold text-base text-foreground">{t.customers.title}</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Add partner entities, configure tax details (NPWP/KTP), and manage billing addresses in the master database.
+                  {t.customers.subtitle}
                 </p>
               </div>
               <div className="mt-6">
@@ -927,7 +934,7 @@ export default function Dashboard() {
                   href="/customers"
                   className="w-full text-center block py-2 rounded-xl bg-primary hover:bg-primary-hover text-background font-semibold text-xs transition-colors"
                 >
-                  Go to Customers
+                  {t.customers.title}
                 </Link>
               </div>
             </div>
@@ -939,17 +946,17 @@ export default function Dashboard() {
               <div>
                 <h3 className="font-bold text-base text-foreground flex items-center gap-2">
                   <Scale className="w-5 h-5 text-amber-500" />
-                  Warehouse Stock Registry
+                  {t.dashboard.warehouseStock}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Review calculated inventory and log actual physical warehouse stock counts.
+                  {t.dashboard.warehouseStockDesc}
                 </p>
               </div>
 
               {stockSuccess && (
                 <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
                   <Check className="w-4 h-4" />
-                  <span>{stockSuccess}</span>
+                  <span>{t.dashboard.stockUpdated}</span>
                 </div>
               )}
 
@@ -964,11 +971,11 @@ export default function Dashboard() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="text-slate-400 uppercase tracking-wider font-semibold border-b border-border-custom">
-                      <th className="py-2.5 px-3">Product</th>
-                      <th className="py-2.5 px-3 text-right">System Stock (Calculated)</th>
-                      <th className="py-2.5 px-3 text-center">Physical Warehouse Count</th>
-                      <th className="py-2.5 px-3 text-right">Discrepancy</th>
-                      <th className="py-2.5 px-3 text-center">Action</th>
+                      <th className="py-2.5 px-3">{t.common.products}</th>
+                      <th className="py-2.5 px-3 text-right">{t.dashboard.calculatedStock}</th>
+                      <th className="py-2.5 px-3 text-center">{t.dashboard.physicalStock}</th>
+                      <th className="py-2.5 px-3 text-right">{t.common.status}</th>
+                      <th className="py-2.5 px-3 text-center">{t.common.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-custom text-foreground">
@@ -993,13 +1000,13 @@ export default function Dashboard() {
                           <td className="py-3 px-3">
                             <div className="font-semibold">{p.nama_product}</div>
                             <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                              Code: {p.kode_product} | Packaging: {p.kemasan_kg} {p.unit}
+                              {p.kode_product} | {p.kemasan_kg} {p.unit}
                             </div>
                           </td>
                           <td className="py-3 px-3 text-right font-medium">
-                            <div className="font-mono">{sysStock.toLocaleString("id-ID")} kg</div>
+                            <div className="font-mono">{formatNumber(sysStock)} kg</div>
                             <div className="text-[10px] text-slate-400">
-                              ≈ {Math.round(sysStock / (p.kemasan_kg || 1)).toLocaleString("id-ID")} {p.unit}
+                              ≈ {formatNumber(Math.round(sysStock / (p.kemasan_kg || 1)))} {p.unit}
                             </div>
                           </td>
                           <td className="py-3 px-3">
@@ -1007,7 +1014,7 @@ export default function Dashboard() {
                               <input
                                 type="number"
                                 value={inputVal === 0 && editedStocks[p.kode_product] === undefined && currentLoggedVal === undefined ? "" : inputVal}
-                                placeholder={hasLoggedCount ? currentLoggedVal.toString() : "Enter kg"}
+                                placeholder={hasLoggedCount ? currentLoggedVal.toString() : "kg"}
                                 onChange={(e) => handleStockInputChange(p.kode_product, e.target.value)}
                                 className="w-24 px-2 py-1 text-center rounded border border-border-custom bg-card-bg text-foreground focus:outline-none focus:ring-1 focus:ring-zinc-450 text-xs font-mono"
                               />
@@ -1019,7 +1026,7 @@ export default function Dashboard() {
                               diff === 0 ? (
                                 <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                   <Check className="w-3 h-3" />
-                                  Matches
+                                  OK
                                 </span>
                               ) : (
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${
@@ -1027,11 +1034,11 @@ export default function Dashboard() {
                                     ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" 
                                     : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
                                 }`}>
-                                  {diff! > 0 ? "+" : ""}{diff!.toLocaleString("id-ID")} kg
+                                  {diff! > 0 ? "+" : ""}{formatNumber(diff!)} kg
                                 </span>
                               )
                             ) : (
-                              <span className="text-slate-400 italic text-[10px]">Unlogged</span>
+                              <span className="text-slate-400 italic text-[10px]">-</span>
                             )}
                           </td>
                           <td className="py-3 px-3 text-center">
@@ -1039,7 +1046,7 @@ export default function Dashboard() {
                               onClick={() => handleUpdateStock(p.kode_product)}
                               disabled={isPendingUpdate}
                               className="p-1.5 rounded-lg border border-border-custom bg-card-bg hover:bg-slate-500/5 text-foreground hover:text-primary transition-colors cursor-pointer disabled:opacity-50"
-                              title="Save Physical Stock"
+                              title={t.common.save}
                             >
                               {isPendingUpdate ? (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />

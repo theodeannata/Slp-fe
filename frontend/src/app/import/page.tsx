@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAppStore, Customer, Product, Sale, Purchase, Payment } from "@/lib/store";
 import { api } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 import {
   Upload,
   FileSpreadsheet,
@@ -16,6 +17,10 @@ import {
   Trash2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ParsedData {
   customers: Customer[];
@@ -27,6 +32,7 @@ interface ParsedData {
 }
 
 export default function ImportPage() {
+  const { t } = useTranslation();
   const { isMockMode, customers, products, sales, addCustomer, addProduct, addSale, addPurchasePT, addPurchaseNonPT, addPayment } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<"file" | "manual">("file");
@@ -379,9 +385,9 @@ export default function ImportPage() {
       {/* Title Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-custom pb-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Bulk Data Ingestion & entry</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.import.title}</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Add data to the SLP ERP via Excel spreadsheets or spreadsheet bulk-entry forms.
+            {t.import.subtitle}
           </p>
         </div>
         <div className="flex items-center gap-2 text-[11px] font-semibold">
@@ -393,40 +399,32 @@ export default function ImportPage() {
       </div>
 
       {/* Tabs Switcher */}
-      <div className="flex items-center border-b border-border-custom">
-        <button
-          onClick={() => { setActiveTab("file"); setError(null); setSuccess(null); }}
-          className={`px-4 py-2.5 font-semibold text-xs tracking-wide transition-colors relative cursor-pointer flex items-center gap-1.5
-            ${activeTab === "file" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
-        >
-          <Upload className="w-3.5 h-3.5" />
-          <span>Upload Spreadsheet</span>
-          {activeTab === "file" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />}
-        </button>
-        <button
-          onClick={() => { setActiveTab("manual"); setError(null); setSuccess(null); }}
-          className={`px-4 py-2.5 font-semibold text-xs tracking-wide transition-colors relative cursor-pointer flex items-center gap-1.5
-            ${activeTab === "manual" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
-        >
-          <Grid className="w-3.5 h-3.5" />
-          <span>Bulk Manual Entry Grid</span>
-          {activeTab === "manual" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />}
-        </button>
-      </div>
+      <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val as "file" | "manual"); setError(null); setSuccess(null); }}>
+        <TabsList>
+          <TabsTrigger value="file" className="flex items-center gap-1.5">
+            <Upload className="w-3.5 h-3.5" />
+            <span>{t.import.uploadFile}</span>
+          </TabsTrigger>
+          <TabsTrigger value="manual" className="flex items-center gap-1.5">
+            <Grid className="w-3.5 h-3.5" />
+            <span>Bulk Manual Entry Grid</span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Notifications */}
       {error && (
-        <div className="p-3.5 rounded-xl border bg-red-500/10 text-accent-red border-red-500/20 text-xs flex items-start gap-2.5">
-          <AlertCircle className="w-4.5 h-4.5 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {success && (
-        <div className="p-3.5 rounded-xl border bg-zinc-100 dark:bg-zinc-950 border-border-custom text-xs flex items-start gap-2.5 text-foreground">
-          <CheckCircle2 className="w-4.5 h-4.5 shrink-0 mt-0.5 text-emerald-500" />
-          <span>{success}</span>
-        </div>
+        <Alert className="border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
       )}
 
       {/* Tab 1: Upload Excel File */}
@@ -435,21 +433,21 @@ export default function ImportPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Control panel */}
             <div className="border border-border-custom bg-card-bg p-6 rounded-2xl shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-foreground">Import settings</h3>
+              <h3 className="font-bold text-sm text-foreground">{t.import.selectDataType}</h3>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-500">Mapping Sheet DataType</label>
+                <label className="text-xs font-semibold text-slate-500">{t.import.selectDataType}</label>
                 <select
                   value={selectedSheetType}
                   onChange={(e) => handleSheetTypeChange(e.target.value as keyof ParsedData)}
                   className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
-                  <option value="sales">Sales Invoices (penjualan)</option>
-                  <option value="customers">Customers (customers)</option>
-                  <option value="products">Products (products)</option>
-                  <option value="purchasesPT">PT Purchases (pembelian)</option>
-                  <option value="purchasesNonPT">Non-PT Purchases (beli_non_pt)</option>
-                  <option value="payments">Payments separate (pembayaran_terpisah)</option>
+                  <option value="sales">{t.sales.title} (penjualan)</option>
+                  <option value="customers">{t.customers.title} (customers)</option>
+                  <option value="products">{t.products.title} (products)</option>
+                  <option value="purchasesPT">{t.purchases.ptTab} (pembelian)</option>
+                  <option value="purchasesNonPT">{t.purchases.nonPtTab} (beli_non_pt)</option>
+                  <option value="payments">{t.payments.title} (pembayaran_terpisah)</option>
                 </select>
               </div>
 
@@ -471,8 +469,8 @@ export default function ImportPage() {
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs font-bold text-foreground">Click to upload or drag spreadsheet file</p>
-                <p className="text-[10px] text-slate-400 mt-1">Supports Excel .xlsx, .xls, and .csv files.</p>
+                <p className="text-xs font-bold text-foreground">{t.import.dragDropText}</p>
+                <p className="text-[10px] text-slate-400 mt-1">{t.import.supportedFormats}</p>
               </div>
               {file && (
                 <div className="mt-4 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-[10px] font-semibold text-zinc-900 dark:text-zinc-550 flex items-center gap-1.5 z-20">
@@ -488,27 +486,27 @@ export default function ImportPage() {
             <div className="border border-border-custom bg-card-bg p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-border-custom pb-4">
                 <div>
-                  <h3 className="font-bold text-sm text-foreground">Excel Data Rows Preview</h3>
+                  <h3 className="font-bold text-sm text-foreground">{t.import.previewRows}</h3>
                   <p className="text-[10px] text-slate-500 mt-0.5">Showing parsed columns from Excel before executing import.</p>
                 </div>
 
-                <button
+                <Button
                   onClick={handleImportSubmit}
                   disabled={loading}
-                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-background rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors shadow-sm"
+                  className="flex items-center gap-1.5"
                 >
                   {loading ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Importing {previewRows.length} Rows...
+                      {t.import.importing}
                     </>
                   ) : (
                     <>
                       <Database className="w-3.5 h-3.5" />
-                      Import {previewRows.length} Rows
+                      {t.import.executeImport} ({previewRows.length} Rows)
                     </>
                   )}
-                </button>
+                </Button>
               </div>
 
               <div className="overflow-x-auto max-h-[300px]">
@@ -555,23 +553,26 @@ export default function ImportPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={addManualRow}
-                  className="px-3.5 py-1.5 border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-foreground rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                  className="flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Row</span>
-                </button>
+                </Button>
 
-                <button
+                <Button
                   type="submit"
+                  size="sm"
                   disabled={loading || manualRows.length === 0}
-                  className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-background rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors shadow-sm"
+                  className="flex items-center gap-1.5"
                 >
                   {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>Save All Invoices</span>
-                </button>
+                </Button>
               </div>
             </div>
 

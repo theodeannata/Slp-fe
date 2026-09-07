@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAppStore, BankStatement, Sale } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Modal } from "@/components/Modal";
+import { useTranslation } from "@/lib/i18n";
 import { useForm } from "react-hook-form";
 import {
   CreditCard,
@@ -22,10 +23,20 @@ import {
   Zap,
   Link as LinkIcon,
   Unlink,
+  FileText,
+  FileSpreadsheet,
+  UploadCloud,
+  Check,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function BankStatementsPage() {
+  const { t, formatCurrency } = useTranslation();
   const { isMockMode, sales } = useAppStore();
   const [data, setData] = useState<BankStatement[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,13 +54,15 @@ export default function BankStatementsPage() {
   const [manualMatchModalOpen, setManualMatchModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [autoMatchOnUpload, setAutoMatchOnUpload] = useState<boolean>(false);
 
-  // Manual Assigning State
-  const [selectedBankRow, setSelectedBankRow] = useState<BankStatement | null>(null);
+  // Manual & Batch Assigning State
+  const [selectedBankRowIds, setSelectedBankRowIds] = useState<string[]>([]);
+  const [selectedBankRows, setSelectedBankRows] = useState<BankStatement[]>([]);
   const [salesSearch, setSalesSearch] = useState<string>("");
   const [salesList, setSalesList] = useState<Sale[]>(sales);
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [allocatedAmount, setAllocatedAmount] = useState<number>(0);
+  const [selectedSales, setSelectedSales] = useState<Sale[]>([]);
+  const [allocationsMap, setAllocationsMap] = useState<Record<string, number>>({});
 
   const { register, handleSubmit, reset } = useForm<Partial<BankStatement>>();
 
@@ -151,16 +164,16 @@ export default function BankStatementsPage() {
     }
   };
 
-  // Open Manual Assign Modal
-  const openManualMatchModal = (row: BankStatement) => {
-    setSelectedBankRow(row);
-    setAllocatedAmount(row.masuk || 0);
-    setSelectedSale(null);
+  // Open Multi-Payment / Multi-Invoice Assignment Modal
+  const openMatchModal = (bankRowsToMatch: BankStatement[]) => {
+    setSelectedBankRows(bankRowsToMatch);
+    setSelectedSales([]);
+    setAllocationsMap({});
     setSalesSearch("");
 
-    // Auto search sales if memo contains 3-4 digit code
-    if (row.keterangan) {
-      const match = row.keterangan.match(/\b0?\d{3,4}\b/);
+    // Auto search sales if memo contains 3-4 digit code in first selected row
+    if (bankRowsToMatch.length > 0 && bankRowsToMatch[0].keterangan) {
+      const match = bankRowsToMatch[0].keterangan.match(/\b0?\d{3,4}\b/);
       if (match) {
         setSalesSearch(match[0]);
       }
@@ -168,22 +181,86 @@ export default function BankStatementsPage() {
     setManualMatchModalOpen(true);
   };
 
-  // Submit Manual Assignment
-  const handleConfirmManualMatch = async () => {
-    if (!selectedBankRow || !selectedSale) return;
+  // Toggle invoice selection in modal
+  const toggleSaleSelection = (sale: Sale) => {
+    setSelectedSales((prev) => {
+      const exists = prev.some((s) => s.kode_unik === sale.kode_unik);
+      if (exists) {
+        const next = prev.filter((s) => s.kode_unik !== sale.kode_unik);
+        setAllocationsMap((alloc) => {
+          const updated = { ...alloc };
+          delete updated[sale.kode_unik];
+          return updated;
+        });
+        return next;
+      } else {
+        const next = [...prev, sale];
+        // Calculate remaining funds for default allocation
+        const totalFunds = selectedBankRows.reduce((sum, b) => sum + (b.masuk || 0), 0);
+        const currentAllocated = Object.values(allocationsMap).reduce((a, b) => a + b, 0);
+        const defaultAmt = Math.max(0, Math.min(totalFunds - currentAllocated, sale.sisa || 0));
+
+        setAllocationsMap((alloc) => ({
+          ...alloc,
+          [sale.kode_unik]: defaultAmt,
+        }));
+        return next;
+      }
+    });
+  };
+
+  // Auto-distribute payment funds sequentially across selected invoices
+  const handleAutoDistributeFunds = () => {
+    const totalFunds = selectedBankRows.reduce((sum, b) => sum + (b.masuk || 0), 0);
+    let remaining = totalFunds;
+    const newAlloc: Record<string, number> = {};
+
+    for (const sale of selectedSales) {
+      const needed = sale.sisa || 0;
+      const give = Math.min(remaining, needed);
+      newAlloc[sale.kode_unik] = give;
+      remaining = Math.max(0, remaining - give);
+    }
+    setAllocationsMap(newAlloc);
+  };
+
+  // Submit N:M Batch Assignment
+  const handleConfirmBatchMatch = async () => {
+    if (selectedBankRows.length === 0 || selectedSales.length === 0) return;
     setActionLoading(true);
     setError(null);
+
     try {
-      await api.bankStatements.match(
-        selectedBankRow.id,
-        selectedSale.kode_unik,
-        allocatedAmount
-      );
-      setSuccess(`Manually matched payment to invoice ${selectedSale.kode_unik}!`);
+      const payloadAllocations: Array<{ bank_pt_id: string; penjualan_kode_unik: string; allocated_amount: number }> = [];
+
+      for (const bankRow of selectedBankRows) {
+        for (const sale of selectedSales) {
+          const allocAmt = allocationsMap[sale.kode_unik] || 0;
+          if (allocAmt > 0) {
+            // Split payment proportionally if multiple bank payments are selected
+            const bankPortion = allocAmt / selectedBankRows.length;
+            payloadAllocations.push({
+              bank_pt_id: bankRow.id,
+              penjualan_kode_unik: sale.kode_unik,
+              allocated_amount: bankPortion,
+            });
+          }
+        }
+      }
+
+      if (payloadAllocations.length === 0) {
+        setError("Please allocate at least some funds (> IDR 0) to selected invoices.");
+        setActionLoading(false);
+        return;
+      }
+
+      await api.bankStatements.batchMatch(payloadAllocations);
+      setSuccess(`Matched ${selectedBankRows.length} payment entry(ies) across ${selectedSales.length} sales invoice(s)!`);
       setManualMatchModalOpen(false);
+      setSelectedBankRowIds([]);
       loadData();
     } catch (err: any) {
-      setError(err.message || "Failed to match payment.");
+      setError(err.message || "Failed to assign payment.");
     } finally {
       setActionLoading(false);
     }
@@ -227,9 +304,13 @@ export default function BankStatementsPage() {
     setActionLoading(true);
     setError(null);
     try {
-      const pMonth = periodMonth === "ALL" ? "2026-06" : periodMonth;
-      const res = await api.bankStatements.upload(uploadFile, pMonth);
-      setSuccess(`Uploaded ${res.length || 0} statement entries from ${uploadFile.name} & auto-matched invoices!`);
+      const pMonth = periodMonth === "ALL" ? "2026-07" : periodMonth;
+      const res = await api.bankStatements.upload(uploadFile, pMonth, autoMatchOnUpload);
+      if (autoMatchOnUpload) {
+        setSuccess(`Uploaded ${res.length || 0} entries from ${uploadFile.name} & auto-matched sales invoices!`);
+      } else {
+        setSuccess(`Successfully ingested ${res.length || 0} statement entries from ${uploadFile.name} into Bank PT ledger!`);
+      }
       setUploadModalOpen(false);
       setUploadFile(null);
       loadData();
@@ -277,10 +358,10 @@ export default function BankStatementsPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                Editable Bank Statement Ledger
+                {t.bankStatements.title}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Automated matching & manual payment assignment for Sales Invoices (`penjualan`)
+                {t.bankStatements.subtitle}
               </p>
             </div>
           </div>
@@ -290,7 +371,7 @@ export default function BankStatementsPage() {
           <select
             value={periodMonth}
             onChange={(e) => setPeriodMonth(e.target.value)}
-            className="px-4 py-2 bg-slate-900 dark:bg-black text-white border border-primary/60 rounded-xl text-sm font-bold shadow-md focus:outline-none focus:ring-2 focus:ring-primary"
+            className="h-9 px-3 py-1 bg-background text-foreground border border-input rounded-md text-sm font-semibold shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="ALL">All Statement Periods (1,462 Rows)</option>
             <option value="2026-12">Period: 2026-12 (BCAPT1226)</option>
@@ -312,44 +393,58 @@ export default function BankStatementsPage() {
             <option value="2025-08">Period: 2025-08 (BCAPT0825)</option>
           </select>
 
-          <button
+          <Button
             onClick={handleAutoReconcile}
             disabled={actionLoading}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-colors shadow-md disabled:opacity-50"
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
             title="Automate matching for all unmatched entries"
           >
             {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 text-amber-300" />}
             Auto Match All
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="outline"
             onClick={() => setUploadModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-sm transition-colors shadow-md"
+            className="flex items-center gap-2"
           >
-            <Upload className="w-4 h-4 text-white" /> Upload CSV/XLSX
-          </button>
+            <Upload className="w-4 h-4" /> {t.bankStatements.uploadStatement}
+          </Button>
 
-          <button
+          {selectedBankRowIds.length > 0 && (
+            <Button
+              onClick={() => {
+                const rows = data.filter((r) => selectedBankRowIds.includes(r.id));
+                openMatchModal(rows);
+              }}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white animate-pulse"
+            >
+              <LinkIcon className="w-4 h-4" />
+              Batch Match ({selectedBankRowIds.length})
+            </Button>
+          )}
+
+          <Button
             onClick={() => setAddModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-sm transition-colors shadow-md"
+            className="flex items-center gap-2"
           >
-            <Plus className="w-4 h-4 text-white" /> Add Entry
-          </button>
+            <Plus className="w-4 h-4" /> {t.common.add}
+          </Button>
         </div>
       </div>
 
       {/* Alerts */}
       {error && (
-        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 shrink-0" />
-          <span>{error}</span>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
       {success && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 shrink-0" />
-          <span>{success}</span>
-        </div>
+        <Alert className="border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
       )}
 
       {/* Summary KPI Grid */}
@@ -420,7 +515,7 @@ export default function BankStatementsPage() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search memo or invoice..."
+            placeholder={t.bankStatements.searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-xl text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -433,30 +528,66 @@ export default function BankStatementsPage() {
         {isLoading ? (
           <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-2">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            <span>Loading statement records...</span>
+            <span>{t.common.loading}</span>
           </div>
         ) : filteredData.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground">
-            No bank statement entries match your filter.
+            {t.common.noMatchingRecords}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-muted/40 border-b border-border text-xs uppercase font-semibold text-muted-foreground">
                 <tr>
-                  <th className="p-3.5 w-36">TANGGAL</th>
-                  <th className="p-3.5">KETERANGAN (MEMO)</th>
-                  <th className="p-3.5 w-40 text-right">MASUK (CR)</th>
-                  <th className="p-3.5 w-40 text-right">KELUAR (DB)</th>
+                  <th className="p-3.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredData.filter((r) => r.masuk && r.masuk > 0).length > 0 &&
+                        filteredData
+                          .filter((r) => r.masuk && r.masuk > 0)
+                          .every((r) => selectedBankRowIds.includes(r.id))
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          const creditIds = filteredData.filter((r) => r.masuk && r.masuk > 0).map((r) => r.id);
+                          setSelectedBankRowIds(creditIds);
+                        } else {
+                          setSelectedBankRowIds([]);
+                        }
+                      }}
+                      className="w-4 h-4 text-primary rounded border-border focus:ring-primary cursor-pointer"
+                    />
+                  </th>
+                  <th className="p-3.5 w-36">{t.bankStatements.transactionDate}</th>
+                  <th className="p-3.5">{t.bankStatements.description}</th>
+                  <th className="p-3.5 w-40 text-right">{t.bankStatements.credit}</th>
+                  <th className="p-3.5 w-40 text-right">{t.bankStatements.debit}</th>
                   <th className="p-3.5 w-36">ACCOUNT</th>
-                  <th className="p-3.5 w-44 text-right">SALDO (FORMULA)</th>
-                  <th className="p-3.5 w-44">INVOICE MATCH</th>
-                  <th className="p-3.5 w-28 text-center">ACTIONS</th>
+                  <th className="p-3.5 w-44 text-right">SALDO</th>
+                  <th className="p-3.5 w-44">{t.bankStatements.reconciliationStatus}</th>
+                  <th className="p-3.5 w-28 text-center">{t.common.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredData.map((row) => (
                   <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="p-2 text-center">
+                      {row.masuk && row.masuk > 0 ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedBankRowIds.includes(row.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedBankRowIds((prev) => [...prev, row.id]);
+                            } else {
+                              setSelectedBankRowIds((prev) => prev.filter((id) => id !== row.id));
+                            }
+                          }}
+                          className="w-4 h-4 text-primary rounded border-border focus:ring-primary cursor-pointer"
+                        />
+                      ) : null}
+                    </td>
                     <td className="p-2">
                       <input
                         type="date"
@@ -524,10 +655,11 @@ export default function BankStatementsPage() {
                         </div>
                       ) : row.masuk && row.masuk > 0 ? (
                         <button
-                          onClick={() => openManualMatchModal(row)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-lg text-xs font-semibold transition-colors"
+                          onClick={() => openMatchModal([row])}
+                          className="p-1.5 text-emerald-600 hover:text-emerald-500 font-semibold flex items-center gap-1 transition-colors"
+                          title="Assign to Sales Invoice(s)"
                         >
-                          <LinkIcon className="w-3 h-3" /> Assign
+                          <LinkIcon className="w-4 h-4" />
                         </button>
                       ) : (
                         <span className="text-muted-foreground text-xs">-</span>
@@ -559,27 +691,49 @@ export default function BankStatementsPage() {
         )}
       </div>
 
-      {/* Manual Assignment Modal */}
+      {/* Multi-Payment & Multi-Invoice Manual Assignment Modal */}
       <Modal
         isOpen={manualMatchModalOpen}
         onClose={() => setManualMatchModalOpen(false)}
-        title="Manual Payment Assigning to Sales Invoice"
+        title="Multi-Payment & Multi-Invoice Matching Matrix (N:M)"
       >
         <div className="space-y-4">
-          {selectedBankRow && (
-            <div className="p-3 bg-muted/40 rounded-xl border border-border text-xs space-y-1">
-              <div className="flex justify-between font-semibold">
-                <span>Payment Date: {selectedBankRow.tanggal}</span>
-                <span className="text-emerald-500 font-bold">+ {formatRupiah(selectedBankRow.masuk)}</span>
-              </div>
-              <p className="text-muted-foreground font-mono">{selectedBankRow.keterangan}</p>
+          {/* Selected Bank Payments Overview */}
+          <div className="p-3 bg-muted/40 rounded-xl border border-border space-y-2">
+            <div className="flex justify-between items-center text-xs font-bold text-foreground">
+              <span>Selected Bank Payment Pool ({selectedBankRows.length} Entry/Entries)</span>
+              <span className="text-emerald-500 text-sm font-extrabold">
+                Total Funds: {formatRupiah(selectedBankRows.reduce((a, b) => a + (b.masuk || 0), 0))}
+              </span>
             </div>
-          )}
 
+            <div className="max-h-28 overflow-y-auto space-y-1 divide-y divide-border/40">
+              {selectedBankRows.map((b) => (
+                <div key={b.id} className="pt-1 flex justify-between items-center text-[11px]">
+                  <span className="font-mono text-muted-foreground truncate">{b.tanggal} — {b.keterangan}</span>
+                  <span className="font-bold text-emerald-500 shrink-0 ml-2">+ {formatRupiah(b.masuk)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Search & Multi-Select Invoices */}
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground mb-1">
-              Search & Select Target Sales Invoice (`penjualan`)
-            </label>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="block text-xs font-bold text-foreground">
+                Search & Select Target Invoices (`penjualan`)
+              </label>
+              {selectedSales.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleAutoDistributeFunds}
+                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                >
+                  <Zap className="w-3 h-3 text-amber-400" /> Auto-Distribute Funds
+                </button>
+              )}
+            </div>
+
             <div className="relative mb-2">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -587,53 +741,96 @@ export default function BankStatementsPage() {
                 placeholder="Type customer name or invoice code (e.g. 0207)..."
                 value={salesSearch}
                 onChange={(e) => setSalesSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs"
+                className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs font-medium"
               />
             </div>
 
-            <div className="max-h-48 overflow-y-auto border border-border rounded-xl divide-y divide-border">
-              {filteredSales.map((s) => (
-                <div
-                  key={s.kode_unik}
-                  onClick={() => {
-                    setSelectedSale(s);
-                    setAllocatedAmount(selectedBankRow?.masuk || s.sisa);
-                  }}
-                  className={`p-2.5 text-xs cursor-pointer hover:bg-muted/40 transition-colors flex justify-between items-center ${
-                    selectedSale?.kode_unik === s.kode_unik ? "bg-primary/20 border-l-4 border-primary font-bold" : ""
-                  }`}
-                >
-                  <div>
-                    <p className="font-mono text-primary font-semibold">{s.kode_unik}</p>
-                    <p className="text-muted-foreground">{s.customer}</p>
+            <div className="max-h-44 overflow-y-auto border border-border rounded-xl divide-y divide-border">
+              {filteredSales.map((s) => {
+                const isSelected = selectedSales.some((sel) => sel.kode_unik === s.kode_unik);
+                return (
+                  <div
+                    key={s.kode_unik}
+                    onClick={() => toggleSaleSelection(s)}
+                    className={`p-2.5 text-xs cursor-pointer hover:bg-muted/40 transition-colors flex justify-between items-center ${
+                      isSelected ? "bg-primary/15 border-l-4 border-primary font-bold" : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}} // Handled by div onClick
+                        className="w-4 h-4 text-primary rounded border-border focus:ring-primary pointer-events-none"
+                      />
+                      <div>
+                        <p className="font-mono text-primary font-bold">{s.kode_unik}</p>
+                        <p className="text-muted-foreground text-[11px]">{s.customer}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-amber-500">{formatRupiah(s.sisa)} balance</p>
+                      <p className="text-[10px] text-muted-foreground">Total: {formatRupiah(s.total_include)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-amber-500">{formatRupiah(s.sisa)} balance</p>
-                    <p className="text-[10px] text-muted-foreground">Total: {formatRupiah(s.total_include)}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          {selectedSale && (
-            <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl text-xs space-y-2">
-              <p className="font-bold text-primary">Selected: {selectedSale.kode_unik} — {selectedSale.customer}</p>
-              <div className="flex justify-between items-center">
-                <label className="font-semibold text-muted-foreground">Allocated Transfer Amount (IDR):</label>
-                <input
-                  type="number"
-                  value={allocatedAmount}
-                  onChange={(e) => setAllocatedAmount(Number(e.target.value))}
-                  className="w-36 px-2 py-1 bg-background border border-border rounded-lg text-right font-bold text-emerald-500"
-                />
+          {/* Allocation Matrix Table */}
+          {selectedSales.length > 0 && (
+            <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl space-y-3">
+              <h4 className="text-xs font-bold text-primary flex items-center justify-between">
+                <span>Allocation Matrix ({selectedSales.length} Selected Invoice/s)</span>
+                <span className="text-[11px] text-muted-foreground">Adjust amounts per invoice</span>
+              </h4>
+
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {selectedSales.map((s) => (
+                  <div key={s.kode_unik} className="flex justify-between items-center text-xs bg-background p-2 border border-border rounded-lg">
+                    <div className="truncate pr-2">
+                      <p className="font-bold font-mono text-foreground truncate">{s.kode_unik}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{s.customer}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] text-amber-500 font-semibold">Bal: {formatRupiah(s.sisa)}</span>
+                      <input
+                        type="number"
+                        value={allocationsMap[s.kode_unik] ?? 0}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setAllocationsMap((prev) => ({
+                            ...prev,
+                            [s.kode_unik]: val,
+                          }));
+                        }}
+                        className="w-32 px-2 py-1 bg-background border border-border rounded-lg text-right font-bold text-emerald-500 text-xs focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="text-[11px] text-muted-foreground flex justify-between border-t border-primary/20 pt-2">
-                <span>New Outstanding Balance:</span>
-                <span className="font-bold text-foreground">
-                  {formatRupiah(Math.max(0, (selectedSale.sisa || 0) - allocatedAmount))}
-                </span>
-              </div>
+
+              {/* Fund Summary Bar */}
+              {(() => {
+                const totalFunds = selectedBankRows.reduce((sum, b) => sum + (b.masuk || 0), 0);
+                const totalAllocated = Object.values(allocationsMap).reduce((a, b) => a + b, 0);
+                const remaining = totalFunds - totalAllocated;
+                const isOverAllocated = remaining < -0.01;
+
+                return (
+                  <div className="pt-2 border-t border-primary/20 flex items-center justify-between text-xs font-bold">
+                    <span className="text-muted-foreground">Summary:</span>
+                    <div className="flex gap-3 text-[11px]">
+                      <span className="text-foreground">Allocated: {formatRupiah(totalAllocated)}</span>
+                      <span className={isOverAllocated ? "text-destructive font-extrabold" : "text-emerald-500"}>
+                        {isOverAllocated ? `Over by ${formatRupiah(Math.abs(remaining))}` : `Unallocated: ${formatRupiah(remaining)}`}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -647,12 +844,12 @@ export default function BankStatementsPage() {
             </button>
             <button
               type="button"
-              disabled={!selectedSale || actionLoading}
-              onClick={handleConfirmManualMatch}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50"
+              disabled={selectedSales.length === 0 || actionLoading}
+              onClick={handleConfirmBatchMatch}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50 shadow-md"
             >
               {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Confirm Payment Assignment
+              Confirm Batch Assignment
             </button>
           </div>
         </div>
@@ -733,21 +930,25 @@ export default function BankStatementsPage() {
 
       {/* Upload Statement File Modal */}
       <Modal isOpen={uploadModalOpen} onClose={() => setUploadModalOpen(false)} title="Upload E-Banking Statement (CSV / XLSX)">
-        <form onSubmit={handleUploadSubmit} className="space-y-4">
+        <form onSubmit={handleUploadSubmit} className="space-y-5">
+          <div className="flex items-center gap-2 p-3 bg-muted/40 border border-border rounded-xl">
+            <FileText className="w-5 h-5 text-blue-500 shrink-0" />
+            <FileSpreadsheet className="w-5 h-5 text-emerald-500 shrink-0" />
+            <span className="text-xs text-muted-foreground">
+              Supports standard BCA KlikBCA CSV exports (`CorpAcctTrxn.csv`) & Bank PT Excel files (`BANKPT.xlsx`).
+            </span>
+          </div>
+
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground mb-1">Target Statement Period</label>
+            <label className="block text-xs font-bold text-foreground mb-1.5">Target Statement Period</label>
             <select
               value={periodMonth === "ALL" ? "2026-07" : periodMonth}
               onChange={(e) => setPeriodMonth(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm font-semibold"
+              className="w-full px-3 py-2.5 bg-background border border-border rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary"
             >
-              <option value="2026-12">Period: 2026-12 (BCAPT1226)</option>
-              <option value="2026-11">Period: 2026-11 (BCAPT1126)</option>
-              <option value="2026-10">Period: 2026-10 (BCAPT1026)</option>
-              <option value="2026-09">Period: 2026-09 (BCAPT0926)</option>
-              <option value="2026-08">Period: 2026-08 (BCAPT0826)</option>
-              <option value="2026-07">Period: 2026-07 (BCAPT0727 / BCAPT0726)</option>
-              <option value="2026-06">Period: 2026-06 (BCAPT0626)</option>
+              <option value="2026-07">Period: 2026-07 (BCAPT0726 - July 2026)</option>
+              <option value="2026-08">Period: 2026-08 (BCAPT0826 - August 2026)</option>
+              <option value="2026-06">Period: 2026-06 (BCAPT0626 - June 2026)</option>
               <option value="2026-05">Period: 2026-05 (BCAPT0526)</option>
               <option value="2026-04">Period: 2026-04 (BCAPT0426)</option>
               <option value="2026-03">Period: 2026-03 (BCAPT0326)</option>
@@ -758,16 +959,38 @@ export default function BankStatementsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground mb-1">Select Statement File (.csv or .xlsx)</label>
+            <label className="block text-xs font-bold text-foreground mb-1.5">Select Statement File (.csv, .xlsx)</label>
             <input
               type="file"
               accept=".csv, .xlsx, .xls"
               required
               onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-              className="w-full p-2 bg-background border border-border rounded-xl text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
+              className="w-full p-2 bg-background border border-border rounded-xl text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white hover:file:bg-primary/90"
             />
-            <p className="text-[11px] text-muted-foreground mt-1.5">
-              Supports standard BCA e-banking download formats. Incoming credits will be automatically matched to sales invoices upon upload.
+            {uploadFile && (
+              <div className="mt-2 flex items-center justify-between px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg text-xs">
+                <span className="font-semibold text-foreground truncate">{uploadFile.name}</span>
+                <span className="px-2 py-0.5 bg-primary/20 text-primary font-bold rounded uppercase">
+                  {uploadFile.name.split('.').pop()}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoMatchOnUpload}
+                onChange={(e) => setAutoMatchOnUpload(e.target.checked)}
+                className="w-4 h-4 text-primary rounded border-border focus:ring-primary"
+              />
+              <span className="text-xs font-semibold text-foreground">
+                Automatically match open sales invoices upon upload
+              </span>
+            </label>
+            <p className="text-[11px] text-muted-foreground ml-6 mt-0.5">
+              Unchecked by default to allow pure statement ingestion without altering invoice balances.
             </p>
           </div>
 
@@ -782,10 +1005,10 @@ export default function BankStatementsPage() {
             <button
               type="submit"
               disabled={!uploadFile || actionLoading}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 disabled:opacity-50 shadow-md"
+              className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 disabled:opacity-50 shadow-md transition-colors"
             >
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              Upload & Auto-Match
+              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4 text-white" />}
+              Ingest Statement File
             </button>
           </div>
         </form>

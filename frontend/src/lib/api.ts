@@ -732,6 +732,11 @@ export const api = {
           allocated_amount: allocatedAmount,
         }),
       }),
+    batchMatch: (allocations: Array<{ bank_pt_id: string; penjualan_kode_unik: string; allocated_amount: number }>) =>
+      fetchFromBackend("/api/v1/bank-statements/batch-match", {
+        method: "POST",
+        body: JSON.stringify({ allocations }),
+      }),
     unmatch: (bankPtId: string) =>
       fetchFromBackend(`/api/v1/bank-statements/unmatch/${bankPtId}`, {
         method: "POST",
@@ -743,7 +748,7 @@ export const api = {
         method: "POST",
       });
     },
-    upload: async (file: File, periodMonth: string = "2026-06") => {
+    upload: async (file: File, periodMonth: string = "2026-07", autoMatch: boolean = false) => {
       const formData = new FormData();
       formData.append("file", file);
       const isMockMode = useAppStore.getState().isMockMode;
@@ -755,7 +760,7 @@ export const api = {
         token = session?.access_token;
       }
       const response = await fetch(
-        `${API_BASE_URL}/api/v1/bank-statements/upload?period_month=${encodeURIComponent(periodMonth)}`,
+        `${API_BASE_URL}/api/v1/bank-statements/upload?period_month=${encodeURIComponent(periodMonth)}&auto_match=${autoMatch}`,
         {
           method: "POST",
           headers: {
@@ -764,7 +769,10 @@ export const api = {
           body: formData,
         }
       );
-      if (!response.ok) throw new Error("Failed to upload statement file.");
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(errText || "Failed to upload statement file.");
+      }
       return response.json();
     },
   },

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore, Product } from "@/lib/store";
 import { api } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 import { Table } from "@/components/Table";
 import { Modal } from "@/components/Modal";
 import { useForm } from "react-hook-form";
@@ -15,8 +16,13 @@ import {
   Loader2,
   PackagePlus,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function ProductsPage() {
+  const { t } = useTranslation();
   const { products, role, isMockMode, setProducts } = useAppStore();
   const [data, setData] = useState<Product[]>(products);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +59,6 @@ export default function ProductsPage() {
     }
   };
 
-  // Wait, let's fix the typo finaly -> finally
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,7 +82,7 @@ export default function ProductsPage() {
   };
 
   const handleDelete = async (code: string) => {
-    if (!confirm("Are you sure you want to delete this product?")) return;
+    if (!confirm(`${t.products.confirmDelete} (${code})?`)) return;
     setError(null);
     setSuccess(null);
     try {
@@ -86,7 +91,7 @@ export default function ProductsPage() {
       }
       setIsLoading(true);
       await api.products.delete(code);
-      setSuccess("Product deleted successfully.");
+      setSuccess(t.products.deletedSuccess);
       loadData();
     } catch (err: any) {
       setError(err.message || "Delete failed.");
@@ -105,11 +110,11 @@ export default function ProductsPage() {
       if (selectedProd) {
         // Edit Product
         await api.products.update(selectedProd.kode_product, formData);
-        setSuccess(`Product ${formData.nama_product} updated successfully.`);
+        setSuccess(t.products.updatedSuccess);
       } else {
         // Add Product
         await api.products.create(formData);
-        setSuccess(`Product ${formData.nama_product} created successfully.`);
+        setSuccess(t.products.createdSuccess);
       }
       setModalOpen(false);
       loadData();
@@ -122,7 +127,7 @@ export default function ProductsPage() {
 
   const columns = [
     {
-      header: "Product Code",
+      header: t.products.productCode,
       sortKey: "kode_product" as keyof Product,
       accessor: (item: Product) => (
         <span className="px-2.5 py-1.5 font-mono font-semibold rounded-lg bg-slate-50 dark:bg-slate-900 border border-card-border text-slate-800 dark:text-slate-200">
@@ -131,21 +136,21 @@ export default function ProductsPage() {
       ),
     },
     {
-      header: "Name",
+      header: t.products.productName,
       sortKey: "nama_product" as keyof Product,
       accessor: (item: Product) => (
         <span className="font-semibold text-slate-900 dark:text-slate-100">{item.nama_product}</span>
       ),
     },
     {
-      header: "Packaging (KG)",
+      header: t.products.packagingKg,
       sortKey: "kemasan_kg" as keyof Product,
       accessor: (item: Product) => (
         <span className="font-medium text-slate-700 dark:text-slate-350">{item.kemasan_kg} kg</span>
       ),
     },
     {
-      header: "Trading Unit",
+      header: t.products.unit,
       sortKey: "unit" as keyof Product,
       accessor: (item: Product) => (
         <span className="text-slate-500 font-medium">{item.unit}</span>
@@ -158,36 +163,33 @@ export default function ProductsPage() {
       {/* Title Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
-            Products Catalogue
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            {t.products.title}
           </h1>
-          <p className="text-xs text-slate-550 mt-0.5">
-            Maintain items, weights, standard packaging units, and safety stock flags.
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {t.products.subtitle}
           </p>
         </div>
 
-        <button
-          onClick={openAddModal}
-          className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-sm transition-colors"
-        >
+        <Button onClick={openAddModal} className="gap-2">
           <PackagePlus className="w-4 h-4" />
-          <span>Add Product SKU</span>
-        </button>
+          <span>{t.products.addNew}</span>
+        </Button>
       </div>
 
       {/* Messages */}
       {error && (
-        <div className="p-3.5 rounded-xl border bg-red-500/10 text-accent-red border-red-500/20 text-xs flex items-start gap-2.5">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
+        <Alert variant="destructive" className="py-2.5">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription className="text-xs">{error}</AlertDescription>
+        </Alert>
       )}
 
       {success && (
-        <div className="p-3.5 rounded-xl border bg-emerald-500/10 text-accent-green border-emerald-500/20 text-xs flex items-start gap-2.5">
-          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{success}</span>
-        </div>
+        <Alert className="py-2.5 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="w-4 h-4" />
+          <AlertDescription className="text-xs">{success}</AlertDescription>
+        </Alert>
       )}
 
       {/* Main Datatable */}
@@ -195,30 +197,36 @@ export default function ProductsPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
-        searchPlaceholder="Search product by name or product code..."
+        searchPlaceholder={t.products.searchPlaceholder}
         searchFilter={(item, query) =>
           item.nama_product.toLowerCase().includes(query.toLowerCase()) ||
           item.kode_product.toLowerCase().includes(query.toLowerCase())
         }
         actions={(item) => (
-          <>
-            <button
+          <div className="flex items-center justify-end gap-1.5">
+            <Button
+              variant="outline"
+              size="icon-sm"
               onClick={() => openEditModal(item)}
-              className="p-1.5 rounded-lg border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
-              title="Edit Product"
+              title={t.products.editProduct}
             >
               <Edit2 className="w-3.5 h-3.5" />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-sm"
               onClick={() => handleDelete(item.kode_product)}
               disabled={role === "admin"}
-              className={`p-1.5 rounded-lg border border-border-custom hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-400 hover:text-accent-red transition-colors cursor-pointer
-                ${role === "admin" ? "opacity-30 cursor-not-allowed" : ""}`}
-              title={role === "admin" ? "Master Only feature" : "Delete Product"}
+              className={
+                role === "admin"
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:text-destructive hover:bg-destructive/10"
+              }
+              title={t.common.delete}
             >
               <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </>
+            </Button>
+          </div>
         )}
       />
 
@@ -226,83 +234,80 @@ export default function ProductsPage() {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={selectedProd ? "Edit SKU details" : "Register Product SKU"}
+        title={selectedProd ? t.products.editProduct : t.products.addNew}
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Product SKU Code
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                {t.products.productCode}
+              </Label>
+              <Input
                 type="text"
                 required
                 disabled={!!selectedProd}
                 placeholder="e.g. ALS"
                 {...register("kode_product")}
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900"
+                className="disabled:opacity-50 disabled:bg-muted"
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Product Name
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                {t.products.productName}
+              </Label>
+              <Input
                 type="text"
                 required
                 placeholder="e.g. Alumunium Sulfat Crystal Bongkah"
                 {...register("nama_product")}
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Kemasan (KG)
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                {t.products.packagingKg}
+              </Label>
+              <Input
                 type="number"
                 step="0.1"
                 required
                 placeholder="e.g. 50"
                 {...register("kemasan_kg")}
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Standard Unit
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                {t.products.unit}
+              </Label>
+              <Input
                 type="text"
                 required
                 placeholder="e.g. SAK"
                 {...register("unit")}
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
           </div>
 
-          <div className="pt-4 flex items-center justify-end gap-2 border-t border-border-custom">
-            <button
+          <div className="pt-4 flex items-center justify-end gap-2 border-t border-border">
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setModalOpen(false)}
-              className="px-4 py-2 border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
             >
-              Cancel
-            </button>
-            <button
+              {t.common.cancel}
+            </Button>
+            <Button
               type="submit"
               disabled={actionLoading}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-semibold cursor-pointer flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+              className="gap-1.5"
             >
               {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>{selectedProd ? "Update Product" : "Create Product"}</span>
-            </button>
+              <span>{selectedProd ? t.products.editProduct : t.products.addNew}</span>
+            </Button>
           </div>
         </form>
       </Modal>

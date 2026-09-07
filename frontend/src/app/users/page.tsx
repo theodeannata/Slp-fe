@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { supabase } from "@/lib/supabaseClient";
+import { useTranslation } from "@/lib/i18n";
 import {
   Users,
   Shield,
@@ -20,6 +21,20 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 import { Modal } from "@/components/Modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table as ShadcnTable,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 
 interface UserProfile {
   id: string;
@@ -30,6 +45,7 @@ interface UserProfile {
 
 export default function UserManagement() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { role } = useAppStore();
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,263 +237,265 @@ export default function UserManagement() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto font-sans">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-custom pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            User Role Management
+            {t.users.title}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-            Approve registered accounts and assign system permission levels.
+          <p className="text-muted-foreground text-xs mt-0.5">
+            {t.users.subtitle}
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-center">
-          <button
+          <Button
             onClick={() => setModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-background font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+            size="sm"
+            className="gap-1.5 font-semibold text-xs"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>Create User</span>
-          </button>
-          <button
+            <span>{t.common.add} {t.common.role}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={fetchUsers}
             disabled={loading}
-            className="px-3 py-1.5 rounded-xl border border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+            className="gap-1.5 font-semibold text-xs"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            <span>Refresh Users</span>
-          </button>
+            <span>{t.common.refresh}</span>
+          </Button>
         </div>
       </div>
 
       {/* Feedback Messages */}
       {feedback.status && (
-        <div
-          className={`p-3 rounded-xl border text-xs flex items-start gap-2 max-w-xl
-            ${
-              feedback.status === "success"
-                ? "bg-zinc-100 dark:bg-zinc-950 text-foreground border-border-custom"
-                : "bg-red-500/10 text-accent-red border-red-500/20"
-            }`}
+        <Alert
+          variant={feedback.status === "error" ? "destructive" : "default"}
+          className="max-w-xl py-2.5"
         >
           {feedback.status === "success" ? (
-            <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <CheckCircle className="w-4 h-4" />
           ) : (
-            <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+            <ShieldAlert className="w-4 h-4" />
           )}
-          <span>{feedback.message}</span>
-        </div>
+          <AlertDescription className="text-xs">{feedback.message}</AlertDescription>
+        </Alert>
       )}
 
       {/* User Profiles Table */}
-      <div className="border border-border-custom bg-card-bg rounded-xl shadow-sm overflow-hidden">
+      <div className="border border-border bg-card rounded-xl shadow-sm overflow-hidden">
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-500">
+          <div className="py-20 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <Loader2 className="w-8 h-8 animate-spin text-foreground" />
-            <span className="text-xs">Loading registered users...</span>
+            <span className="text-xs">{t.common.loading}</span>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="text-slate-450 uppercase tracking-wider font-semibold border-b border-border-custom bg-zinc-500/5 select-none">
-                  <th className="py-3 px-4">Email Address</th>
-                  <th className="py-3 px-4">Sign Up Date</th>
-                  <th className="py-3 px-4">Current Authorization</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-custom text-foreground">
-                <AnimatePresence mode="popLayout">
-                  {usersList.map((usr) => {
-                    const activeRole = usr.user_roles?.role || "pending";
-                    const isSelf = usr.email === useAppStore.getState().user?.email;
+          <ShadcnTable>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead className="h-10 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.users.userEmail}</TableHead>
+                <TableHead className="h-10 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.users.lastSignIn}</TableHead>
+                <TableHead className="h-10 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.users.assignedRole}</TableHead>
+                <TableHead className="h-10 px-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.users.actions}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <AnimatePresence mode="popLayout">
+                {usersList.map((usr) => {
+                  const activeRole = usr.user_roles?.role || "pending";
+                  const isSelf = usr.email === useAppStore.getState().user?.email;
 
-                    return (
-                      <motion.tr
-                        key={usr.id}
-                        layout
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="hover:bg-slate-500/5 group"
-                      >
-                        <td className="py-3.5 px-4 font-medium text-foreground">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate max-w-[200px] sm:max-w-xs">{usr.email}</span>
-                            {isSelf && (
-                              <span className="text-[9px] px-1.5 py-0.5 bg-primary-light border border-border-custom text-primary font-bold rounded-md">
-                                You
-                              </span>
+                  return (
+                    <TableRow key={usr.id}>
+                      <TableCell className="py-3 px-4 font-medium text-foreground">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate max-w-[200px] sm:max-w-xs">{usr.email}</span>
+                          {isSelf && (
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">
+                              You
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-muted-foreground text-xs">
+                        {new Date(usr.created_at).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </TableCell>
+                      <TableCell className="py-3 px-4">
+                        {activeRole === "db_admin" && (
+                          <Badge variant="outline" className="text-[10px] font-bold bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400 gap-1">
+                            <Shield className="w-3 h-3" />
+                            <span>DB Admin Access</span>
+                          </Badge>
+                        )}
+                        {activeRole === "master" && (
+                          <Badge variant="outline" className="text-[10px] font-bold bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400 gap-1">
+                            <Shield className="w-3 h-3" />
+                            <span>Master Access</span>
+                          </Badge>
+                        )}
+                        {activeRole === "admin" && (
+                          <Badge variant="outline" className="text-[10px] font-bold bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400 gap-1">
+                            <User className="w-3 h-3" />
+                            <span>Admin Access</span>
+                          </Badge>
+                        )}
+                        {activeRole === "pending" && (
+                          <Badge variant="outline" className="text-[10px] font-bold bg-muted text-muted-foreground gap-1 animate-pulse">
+                            <ShieldAlert className="w-3 h-3" />
+                            <span>Pending Approval</span>
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-right">
+                        {isSelf ? (
+                          <span className="text-[10px] text-muted-foreground italic">Self management restricted</span>
+                        ) : (
+                          <div className="flex items-center justify-end gap-1.5">
+                            {actionLoading === usr.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                            ) : (
+                              <>
+                                {activeRole !== "admin" && (
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => handleUpdateRole(usr.id, "admin")}
+                                    className="text-[10px] h-6 hover:text-blue-500"
+                                    title="Approve as Admin"
+                                  >
+                                    Make Admin
+                                  </Button>
+                                )}
+                                {activeRole !== "master" && (
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => handleUpdateRole(usr.id, "master")}
+                                    className="text-[10px] h-6 hover:text-amber-500"
+                                    title="Approve as Master"
+                                  >
+                                    Make Master
+                                  </Button>
+                                )}
+                                {activeRole !== "db_admin" && (
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => handleUpdateRole(usr.id, "db_admin")}
+                                    className="text-[10px] h-6 hover:text-purple-500"
+                                    title="Approve as DB Admin"
+                                  >
+                                    Make DB Admin
+                                  </Button>
+                                )}
+                                {activeRole !== "pending" && (
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => handleUpdateRole(usr.id, null)}
+                                    className="text-[10px] h-6 text-destructive hover:bg-destructive/10"
+                                    title="Revoke and set pending"
+                                  >
+                                    Revoke
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="xs"
+                                  onClick={() => {
+                                    setResetUserId(usr.id);
+                                    setResetUserEmail(usr.email);
+                                    setResetPassword("");
+                                    setResetModalOpen(true);
+                                  }}
+                                  className="text-[10px] h-6"
+                                  title="Change Password"
+                                >
+                                  Password
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon-xs"
+                                  onClick={() => handleDeleteUser(usr.id)}
+                                  className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                                  title="Delete User Permanently"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </>
                             )}
                           </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-500">
-                          {new Date(usr.created_at).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          {activeRole === "db_admin" && (
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-500/10 border border-purple-500/20 text-purple-600 inline-flex items-center gap-1">
-                              <Shield className="w-3 h-3 text-purple-550" />
-                              <span>DB Admin Access</span>
-                            </span>
-                          )}
-                          {activeRole === "master" && (
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-accent-amber inline-flex items-center gap-1">
-                              <Shield className="w-3 h-3" />
-                              <span>Master Access</span>
-                            </span>
-                          )}
-                          {activeRole === "admin" && (
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-500/10 border border-blue-500/20 text-accent-blue inline-flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              <span>Admin Access</span>
-                            </span>
-                          )}
-                          {activeRole === "pending" && (
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-zinc-400/10 border border-zinc-400/20 text-slate-400 inline-flex items-center gap-1 animate-pulse">
-                              <ShieldAlert className="w-3 h-3" />
-                              <span>Pending Approval</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          {isSelf ? (
-                            <span className="text-[10px] text-slate-400 italic">Self management restricted</span>
-                          ) : (
-                            <div className="flex items-center justify-end gap-2">
-                              {actionLoading === usr.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
-                              ) : (
-                                <>
-                                  {activeRole !== "admin" && (
-                                    <button
-                                      onClick={() => handleUpdateRole(usr.id, "admin")}
-                                      className="px-2 py-1 rounded-md border border-border-custom hover:border-blue-400 text-slate-650 hover:text-blue-500 bg-card-bg text-[10px] font-semibold transition-colors cursor-pointer"
-                                      title="Approve as Admin"
-                                    >
-                                      Make Admin
-                                    </button>
-                                  )}
-                                  {activeRole !== "master" && (
-                                    <button
-                                      onClick={() => handleUpdateRole(usr.id, "master")}
-                                      className="px-2 py-1 rounded-md border border-border-custom hover:border-amber-400 text-slate-650 hover:text-amber-500 bg-card-bg text-[10px] font-semibold transition-colors cursor-pointer"
-                                      title="Approve as Master"
-                                    >
-                                      Make Master
-                                    </button>
-                                  )}
-                                  {activeRole !== "db_admin" && (
-                                    <button
-                                      onClick={() => handleUpdateRole(usr.id, "db_admin")}
-                                      className="px-2 py-1 rounded-md border border-border-custom hover:border-purple-400 text-slate-650 hover:text-purple-500 bg-card-bg text-[10px] font-semibold transition-colors cursor-pointer"
-                                      title="Approve as DB Admin"
-                                    >
-                                      Make DB Admin
-                                    </button>
-                                  )}
-                                  {activeRole !== "pending" && (
-                                    <button
-                                      onClick={() => handleUpdateRole(usr.id, null)}
-                                      className="px-2 py-1 rounded-md border border-red-500/10 hover:border-red-500 text-slate-400 hover:text-red-500 bg-card-bg text-[10px] font-semibold transition-colors cursor-pointer"
-                                      title="Revoke and set pending"
-                                    >
-                                      Revoke Access
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => {
-                                      setResetUserId(usr.id);
-                                      setResetUserEmail(usr.email);
-                                      setResetPassword("");
-                                      setResetModalOpen(true);
-                                    }}
-                                    className="px-2 py-1 rounded-md border border-border-custom hover:border-foreground hover:bg-slate-50 dark:hover:bg-zinc-900 text-slate-650 dark:text-slate-300 bg-card-bg text-[10px] font-semibold transition-colors cursor-pointer"
-                                    title="Change Password"
-                                  >
-                                    Password
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteUser(usr.id)}
-                                    className="p-1 rounded-md border border-red-500/10 hover:border-red-500 text-slate-400 hover:text-red-500 bg-card-bg transition-colors cursor-pointer"
-                                    title="Delete User Permanently"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
-                  {usersList.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="py-12 text-center text-slate-450 text-xs">
-                        No registered profiles found in the database.
-                      </td>
-                    </tr>
-                  )}
-                </AnimatePresence>
-              </tbody>
-            </table>
-          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {usersList.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-12 text-center text-muted-foreground text-xs">
+                      No registered profiles found in the database.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </AnimatePresence>
+            </TableBody>
+          </ShadcnTable>
         )}
       </div>
 
       {/* Access Instructions Card */}
-      <div className="p-4 rounded-xl border border-border-custom bg-slate-50 dark:bg-zinc-900/40 text-xs text-slate-500 dark:text-slate-400 space-y-1 max-w-xl">
-        <p className="font-bold text-foreground flex items-center gap-1.5 mb-1.5">
-          <UserCheck className="w-4 h-4 text-foreground" />
-          <span>System Manager Controls</span>
-        </p>
-        <p>• <strong>Make Admin</strong>: Enables customer registry creation, product listing, and sales invoices. Purchases & matching ledger details remain locked.</p>
-        <p>• <strong>Make Master</strong>: Full CRUD permissions, PO matching, data ingestion capabilities, and manager administration.</p>
-        <p>• <strong>Make DB Admin</strong>: Highest role. Manage roles for other accounts.</p>
-        <p>• <strong>Revoke Access</strong>: Instantly removes database-level roles, blocking table reads/writes and presenting the "Pending Activation" state.</p>
-      </div>
+      <Card className="max-w-xl bg-muted/20">
+        <CardContent className="p-4 text-xs text-muted-foreground space-y-1.5">
+          <p className="font-bold text-foreground flex items-center gap-1.5 mb-1.5">
+            <UserCheck className="w-4 h-4 text-foreground" />
+            <span>System Manager Controls</span>
+          </p>
+          <p>• <strong>Make Admin</strong>: Enables customer registry creation, product listing, and sales invoices. Purchases & matching ledger details remain locked.</p>
+          <p>• <strong>Make Master</strong>: Full CRUD permissions, PO matching, data ingestion capabilities, and manager administration.</p>
+          <p>• <strong>Make DB Admin</strong>: Highest role. Manage roles for other accounts.</p>
+          <p>• <strong>Revoke Access</strong>: Instantly removes database-level roles, blocking table reads/writes and presenting the "Pending Activation" state.</p>
+        </CardContent>
+      </Card>
 
       {/* Create User Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Create New Account" maxWidth="max-w-md">
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Create New Account" maxWidth="sm:max-w-md">
         <form onSubmit={handleCreateUser} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Email Address</label>
-            <input
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground">Email Address</Label>
+            <Input
               type="email"
               required
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="user@company.com"
-              className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Password</label>
-            <input
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground">Password</Label>
+            <Input
               type="password"
               required
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Minimum 6 characters"
-              className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-foreground block">System Permission Role</label>
+            <Label className="text-xs font-semibold text-foreground block">System Permission Role</Label>
             <div className="grid grid-cols-3 gap-2">
               <label
                 className={`flex flex-col items-center justify-center p-2.5 border rounded-xl cursor-pointer text-center transition-all
                   ${
                     newRole === "admin"
-                      ? "border-primary bg-primary-light text-primary"
-                      : "border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-slate-500"
+                      ? "border-primary bg-muted text-primary"
+                      : "border-border bg-card hover:bg-muted/40 text-muted-foreground"
                   }`}
               >
                 <input
@@ -495,8 +513,8 @@ export default function UserManagement() {
                 className={`flex flex-col items-center justify-center p-2.5 border rounded-xl cursor-pointer text-center transition-all
                   ${
                     newRole === "master"
-                      ? "border-primary bg-primary-light text-primary"
-                      : "border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-slate-500"
+                      ? "border-primary bg-muted text-primary"
+                      : "border-border bg-card hover:bg-muted/40 text-muted-foreground"
                   }`}
               >
                 <input
@@ -514,8 +532,8 @@ export default function UserManagement() {
                 className={`flex flex-col items-center justify-center p-2.5 border rounded-xl cursor-pointer text-center transition-all
                   ${
                     newRole === "db_admin"
-                      ? "border-primary bg-primary-light text-primary"
-                      : "border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-slate-500"
+                      ? "border-primary bg-muted text-primary"
+                      : "border-border bg-card hover:bg-muted/40 text-muted-foreground"
                   }`}
               >
                 <input
@@ -531,57 +549,56 @@ export default function UserManagement() {
             </div>
           </div>
 
-          <div className="pt-2 flex justify-end gap-2">
-            <button
+          <div className="pt-2 flex justify-end gap-2 border-t border-border">
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setModalOpen(false)}
-              className="px-3.5 py-2 rounded-xl border border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground font-semibold text-xs cursor-pointer transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={submitLoading}
-              className="px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-background font-semibold text-xs cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+              className="gap-1"
             >
-              {submitLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+              {submitLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>Create Account</span>
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
 
       {/* Change Password Modal */}
-      <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title={`Change Password for ${resetUserEmail}`} maxWidth="max-w-md">
+      <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title={`Change Password for ${resetUserEmail}`} maxWidth="sm:max-w-md">
         <form onSubmit={handleResetPassword} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">New Password</label>
-            <input
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground">New Password</Label>
+            <Input
               type="password"
               required
               value={resetPassword}
               onChange={(e) => setResetPassword(e.target.value)}
               placeholder="Minimum 6 characters"
-              className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
             />
           </div>
 
-          <div className="pt-2 flex justify-end gap-2">
-            <button
+          <div className="pt-2 flex justify-end gap-2 border-t border-border">
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setResetModalOpen(false)}
-              className="px-3.5 py-2 rounded-xl border border-border-custom bg-card-bg hover:bg-slate-50 dark:hover:bg-zinc-900 text-foreground font-semibold text-xs cursor-pointer transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={resetLoading}
-              className="px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-background font-semibold text-xs cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+              className="gap-1"
             >
-              {resetLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+              {resetLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>Update Password</span>
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>

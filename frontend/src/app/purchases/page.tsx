@@ -6,6 +6,7 @@ import { useAppStore, Purchase } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Table } from "@/components/Table";
 import { Modal } from "@/components/Modal";
+import { useTranslation } from "@/lib/i18n";
 import { useForm, useFieldArray } from "react-hook-form";
 import {
   Lock,
@@ -22,6 +23,12 @@ import {
   Eye,
   Printer,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface PurchaseItemInput {
   kode_unik?: string;
@@ -51,6 +58,7 @@ interface PurchaseFormInput {
 }
 
 export default function PurchasesPage() {
+  const { t, formatCurrency } = useTranslation();
   const {
     purchasesPT,
     purchasesNonPT,
@@ -574,7 +582,7 @@ export default function PurchasesPage() {
 
   const columns = [
     {
-      header: "PO Code / Unique Code",
+      header: t.purchases.poNumber,
       sortKey: "no_po" as keyof Purchase,
       accessor: (item: any) => (
         <div className="flex flex-col text-left">
@@ -592,14 +600,14 @@ export default function PurchasesPage() {
       ),
     },
     {
-      header: "Vendor",
+      header: t.purchases.vendor,
       sortKey: "vendor" as keyof Purchase,
       accessor: (item: Purchase) => (
         <span className="font-semibold text-slate-900 dark:text-slate-100">{item.vendor}</span>
       ),
     },
     {
-      header: "Receipt Details",
+      header: `${t.purchases.poDate} / ${t.purchases.receiveDate}`,
       sortKey: "tgl_po" as keyof Purchase,
       accessor: (item: Purchase) => (
         <div className="flex flex-col text-left">
@@ -607,13 +615,13 @@ export default function PurchasesPage() {
             PO: {item.tgl_po}
           </span>
           <span className="text-[10px] text-slate-400 mt-0.5">
-            Recv: {item.tgl_terima_barang} | Paid: {item.tgl_bayar}
+            {t.purchases.receiveDate}: {item.tgl_terima_barang} | {t.purchases.payDate}: {item.tgl_bayar}
           </span>
         </div>
       ),
     },
     {
-      header: "Item Description",
+      header: `${t.purchases.item} / ${t.purchases.qtyKg}`,
       sortKey: "barang" as keyof Purchase,
       accessor: (item: any) => (
         <div className="flex flex-col text-left">
@@ -626,20 +634,20 @@ export default function PurchasesPage() {
             )}
           </span>
           <span className="text-[10px] text-slate-450 mt-0.5">
-            Recv {item.qty_terima_kg}kg / Ordered {item.qty_kg}kg ({item.kode_barang})
+            {t.purchases.receivedKg} {item.qty_terima_kg}kg / {t.purchases.qtyKg} {item.qty_kg}kg ({item.kode_barang})
           </span>
         </div>
       ),
     },
     {
-      header: "DPP / Base Price",
+      header: `${t.purchases.dpp} / ${t.purchases.unitPrice}`,
       sortKey: "harga" as keyof Purchase,
       accessor: (item: any) => (
         <div className="flex flex-col text-left">
           <span className="text-xs font-semibold text-slate-650 dark:text-slate-350">
-            {formatRupiah(item.harga)}
+            {formatCurrency(item.harga)}
           </span>
-          <span className="text-[10px] text-slate-400">DPP: {formatRupiah(item.dpp)}</span>
+          <span className="text-[10px] text-slate-400">DPP: {formatCurrency(item.dpp)}</span>
           {item.groupItemsCount > 1 && (
             <span className="text-[9px] text-slate-400 mt-0.5">(First Item)</span>
           )}
@@ -647,21 +655,21 @@ export default function PurchasesPage() {
       ),
     },
     {
-      header: "Total Cost",
+      header: t.purchases.totalAmount,
       sortKey: "total" as keyof Purchase,
       accessor: (item: Purchase) => (
         <span className="font-bold text-slate-850 dark:text-slate-150">
-          {formatRupiah(item.total)}
+          {formatCurrency(item.total)}
         </span>
       ),
     },
     {
-      header: "Calculated Margins",
+      header: `${t.purchases.profit} / ${t.purchases.marginPct}`,
       sortKey: "untung" as keyof Purchase,
       accessor: (item: Purchase) => (
         <div className="flex flex-col text-right">
           <span className="text-xs font-bold text-foreground">
-            +{formatRupiah(item.untung)}
+            +{formatCurrency(item.untung)}
           </span>
           <span className="text-[10px] text-slate-400 mt-0.5">
             {item.persen ? `${item.persen}% margin` : "-"}
@@ -672,7 +680,7 @@ export default function PurchasesPage() {
     ...(activeTab === "non-pt"
       ? [
           {
-            header: "COA Halal",
+            header: t.purchases.halalCoa,
             sortKey: "coa_halal" as keyof Purchase,
             accessor: (item: Purchase) => (
               <span
@@ -697,79 +705,62 @@ export default function PurchasesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Purchases PO Journal
+            {t.purchases.title}
           </h1>
           <p className="text-xs text-slate-555 mt-0.5">
-            View procurement streams, vendor logs, DPP items, and profit margin analysis.
+            {t.purchases.subtitle}
           </p>
         </div>
 
-        <button
+        <Button
           onClick={openAddModal}
-          className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-background rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-sm transition-colors"
+          className="flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          <span>Create {activeTab === "pt" ? "PT PO" : "Non-PT PO"}</span>
-        </button>
+          <span>{activeTab === "pt" ? t.purchases.addNewPT : t.purchases.addNewNonPT}</span>
+        </Button>
       </div>
 
       {/* Tab Switcher */}
-      <div className="flex items-center border-b border-border-custom">
-        <button
-          onClick={() => setActiveTab("pt")}
-          className={`px-4 py-2.5 font-semibold text-xs tracking-wide transition-colors relative cursor-pointer
-            ${activeTab === "pt" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
-        >
-          PT Purchases
-          {activeTab === "pt" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("non-pt")}
-          className={`px-4 py-2.5 font-semibold text-xs tracking-wide transition-colors relative cursor-pointer
-            ${activeTab === "non-pt" ? "text-foreground" : "text-slate-450 hover:text-slate-700 dark:hover:text-slate-200"}`}
-        >
-          Non-PT Purchases
-          {activeTab === "non-pt" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
-          )}
-        </button>
-      </div>
+      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "pt" | "non-pt")}>
+        <TabsList>
+          <TabsTrigger value="pt">{t.purchases.ptTab}</TabsTrigger>
+          <TabsTrigger value="non-pt">{t.purchases.nonPtTab}</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Filter and controls */}
       <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-        <span className="text-xs text-slate-400 font-medium">Filter by Year:</span>
-        {["2022", "2023", "2024", "2025", "2026"].map((yr) => (
-          <button
-            key={yr}
-            onClick={() => setSelectedYear(yr)}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer border transition-colors
-              ${
-                selectedYear === yr
-                  ? "bg-primary-light text-primary border-primary/20"
-                  : "border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
-          >
-            {yr}
-          </button>
-        ))}
+        <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+        <span className="text-xs text-muted-foreground font-medium">{t.common.filter} Year:</span>
+        <div className="flex items-center gap-1.5">
+          {["2022", "2023", "2024", "2025", "2026"].map((yr) => (
+            <Button
+              key={yr}
+              size="sm"
+              variant={selectedYear === yr ? "default" : "outline"}
+              onClick={() => setSelectedYear(yr)}
+              className="h-7 px-3 text-xs"
+            >
+              {yr}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Messages */}
       {error && (
-        <div className="p-3.5 rounded-xl border bg-red-500/10 text-accent-red border-red-500/20 text-xs flex items-start gap-2.5">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {success && (
-        <div className="p-3.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-border-custom text-xs flex items-start gap-2.5">
-          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{success}</span>
-        </div>
+        <Alert className="border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
       )}
 
       {/* Datatable */}
@@ -777,7 +768,7 @@ export default function PurchasesPage() {
         columns={columns}
         data={sortedGroupedData}
         isLoading={isLoading}
-        searchPlaceholder="Search POs by PO number, vendor, or product..."
+        searchPlaceholder={t.purchases.searchPlaceholder}
         searchFilter={(item: any, query) =>
           (item.no_po ? item.no_po.toLowerCase().includes(query.toLowerCase()) : false) ||
           (item.vendor ? item.vendor.toLowerCase().includes(query.toLowerCase()) : false) ||
@@ -790,28 +781,28 @@ export default function PurchasesPage() {
               type="button"
               onClick={() => handleViewPo(item.no_po)}
               className="p-1.5 rounded-lg border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-855 dark:hover:text-slate-200 transition-colors cursor-pointer"
-              title="View PO Items"
+              title={t.common.details}
             >
               <Eye className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => window.open(`/purchases/print?poNo=${encodeURIComponent(item.no_po)}&tab=${activeTab}`, "_blank")}
               className="p-1.5 rounded-lg border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-550 hover:text-slate-900 dark:hover:text-slate-150 transition-colors cursor-pointer"
-              title="Print Purchase Order"
+              title={t.invoicing.printPurchaseOrder}
             >
               <Printer className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleEditPo(item.no_po)}
               className="p-1.5 rounded-lg border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-885 dark:hover:text-slate-200 transition-colors cursor-pointer"
-              title="Edit PO"
+              title={t.purchases.editPO}
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleDeletePo(item.no_po, item.allGroupItems)}
               className="p-1.5 rounded-lg border border-border-custom hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-400 hover:text-accent-red transition-colors cursor-pointer"
-              title="Delete PO"
+              title={t.common.delete}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -840,72 +831,70 @@ export default function PurchasesPage() {
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">PO Number</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="no_po">PO Number</Label>
+                <Input
+                  id="no_po"
                   type="text"
                   required
                   readOnly={!!selectedPoNumber}
                   placeholder="e.g. SLP/PO/0124/0001"
                   {...register("no_po")}
-                  className={`w-full px-3 py-2 border border-border-custom rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20
-                    ${selectedPoNumber 
-                      ? "bg-slate-100 dark:bg-zinc-800/80 cursor-not-allowed text-slate-700 dark:text-slate-350" 
-                      : "bg-card-bg text-foreground"
-                    }`}
+                  className={selectedPoNumber ? "cursor-not-allowed bg-muted text-muted-foreground" : ""}
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Vendor Supplier</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="vendor">Vendor Supplier</Label>
+                <Input
+                  id="vendor"
                   type="text"
                   required
                   placeholder="e.g. Barentz Indonesia"
                   list="purchases-vendors-list"
                   {...register("vendor")}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">PO Date</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="tgl_po">PO Date</Label>
+                <Input
+                  id="tgl_po"
                   type="date"
                   required
                   {...register("tgl_po")}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Receipt Date</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="tgl_terima_barang">Receipt Date</Label>
+                <Input
+                  id="tgl_terima_barang"
                   type="date"
                   required
                   {...register("tgl_terima_barang")}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Payment Date</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="tgl_bayar">Payment Date</Label>
+                <Input
+                  id="tgl_bayar"
                   type="date"
                   required
                   {...register("tgl_bayar")}
-                  className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500">Memo Remarks (Note)</label>
+            <div className="space-y-1.5">
+              <Label htmlFor="note">Memo Remarks (Note)</Label>
               <textarea
+                id="note"
                 {...register("note")}
                 rows={1.5}
                 placeholder="e.g. PO Urgent shipment from warehouse..."
-                className="w-full px-3 py-2 border border-border-custom rounded-xl bg-card-bg text-sm focus:outline-none"
+                className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
           </div>
@@ -959,13 +948,15 @@ export default function PurchasesPage() {
                 return (
                   <div
                     key={field.id}
-                    className="p-4 rounded-xl border border-border-custom bg-slate-50/50 dark:bg-zinc-900/30 space-y-3 relative"
+                    className="p-4 rounded-xl border border-border bg-card shadow-xs space-y-3 relative"
                   >
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-slate-400">Goods #{index + 1}</span>
+                    <div className="flex justify-between items-center pb-1 border-b border-border/60">
+                      <span className="text-xs font-bold text-foreground">Goods #{index + 1}</span>
                       {fields.length > 1 && (
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => {
                             const itemCode = watchedItems?.[index]?.kode_unik;
                             if (itemCode) {
@@ -973,18 +964,18 @@ export default function PurchasesPage() {
                             }
                             remove(index);
                           }}
-                          className="p-1 text-slate-400 hover:text-accent-red hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer transition-colors"
+                          className="text-muted-foreground hover:text-destructive h-7 w-7"
                           title="Remove item"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Product SKU (Type/Select)</label>
-                        <input
+                        <Label className="text-[11px]">Product SKU</Label>
+                        <Input
                           type="text"
                           required
                           placeholder="SKU"
@@ -998,116 +989,116 @@ export default function PurchasesPage() {
                               setValue(`items.${index}.barang`, matchingProd.nama_product);
                             }
                           }}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                          className="h-8 text-xs font-mono"
                         />
                       </div>
                       
                       <div className="space-y-1 col-span-2">
-                        <label className="text-[10px] font-semibold text-slate-400">Product Name</label>
-                        <input
+                        <Label className="text-[11px]">Product Name</Label>
+                        <Input
                           type="text"
                           required
                           placeholder="Product Name"
                           {...register(`items.${index}.barang` as const, { required: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                          className="h-8 text-xs font-medium"
                         />
                       </div>
 
                       {activeTab === "non-pt" ? (
                         <div className="space-y-1">
-                          <label className="text-[10px] font-semibold text-slate-400">COA Halal</label>
+                          <Label className="text-[11px]">COA Halal</Label>
                           <select
                             {...register(`items.${index}.coa_halal` as const)}
-                            className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:outline-none font-semibold text-slate-700"
+                            className="w-full h-8 px-2.5 border border-input rounded-md bg-transparent text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-ring"
                           >
                             <option value="Y">Halal (Y)</option>
                             <option value="N">Non-Halal (N)</option>
                           </select>
                         </div>
                       ) : (
-                        <div className="space-y-1 invisible" />
+                        <div className="space-y-1 invisible hidden sm:block" />
                       )}
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Qty Ordered (kg)</label>
-                        <input
+                        <Label className="text-[11px]">Qty Ordered (kg)</Label>
+                        <Input
                           type="number"
                           step="0.01"
                           required
                           placeholder="0"
                           {...register(`items.${index}.qty_kg` as const, { valueAsNumber: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:outline-none"
+                          className="h-8 text-xs"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Qty Received (kg)</label>
-                        <input
+                        <Label className="text-[11px]">Qty Received (kg)</Label>
+                        <Input
                           type="number"
                           step="0.01"
                           required
                           placeholder="0"
                           {...register(`items.${index}.qty_terima_kg` as const, { valueAsNumber: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:outline-none"
+                          className="h-8 text-xs"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Base Unit Cost (Harga IDR)</label>
-                        <input
+                        <Label className="text-[11px]">Base Cost (IDR)</Label>
+                        <Input
                           type="number"
                           step="0.01"
                           required
                           placeholder="0"
                           {...register(`items.${index}.harga` as const, { valueAsNumber: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs font-semibold focus:ring-1 focus:outline-none"
+                          className="h-8 text-xs font-semibold"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">DPP Value (Exc PPN)</label>
-                        <input
+                        <Label className="text-[11px]">DPP (Exc PPN)</Label>
+                        <Input
                           type="number"
                           step="0.01"
                           placeholder="Calculated"
                           {...register(`items.${index}.dpp` as const, { valueAsNumber: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs text-slate-500 focus:ring-1 focus:outline-none"
+                          className="h-8 text-xs text-muted-foreground"
                         />
                       </div>
                     </div>
 
                     {/* MARGIN CALCULATORS AT ROW LEVEL */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-dashed border-border-custom/50 pt-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-dashed border-border pt-2">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Selling Price (Jual IDR)</label>
-                        <input
+                        <Label className="text-[11px]">Selling Price (IDR)</Label>
+                        <Input
                           type="number"
                           step="0.01"
                           placeholder="Optional"
                           {...register(`items.${index}.jual` as const, { valueAsNumber: true })}
-                          className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-card-bg text-xs focus:ring-1 focus:outline-none"
+                          className="h-8 text-xs"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Total Purchase Cost</label>
-                        <div className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-slate-100 dark:bg-zinc-800 text-xs font-semibold text-slate-600">
+                        <Label className="text-[11px]">Total Cost</Label>
+                        <div className="h-8 px-2.5 flex items-center border border-border rounded-md bg-muted/50 text-xs font-semibold text-foreground">
                           {itemTotal ? formatRupiah(itemTotal) : "-"}
                         </div>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Estimated Profit (IDR)</label>
-                        <div className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-slate-100 dark:bg-zinc-800 text-xs font-semibold text-accent-green">
+                        <Label className="text-[11px]">Est. Profit</Label>
+                        <div className="h-8 px-2.5 flex items-center border border-border rounded-md bg-muted/50 text-xs font-semibold text-accent-green">
                           {itemProfit ? formatRupiah(itemProfit) : "-"}
                         </div>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-slate-400">Margin Percent (%)</label>
-                        <div className="w-full px-2.5 py-1.5 border border-border-custom rounded-lg bg-slate-100 dark:bg-zinc-800 text-xs font-bold text-foreground">
+                        <Label className="text-[11px]">Margin</Label>
+                        <div className="h-8 px-2.5 flex items-center border border-border rounded-md bg-muted/50 text-xs font-bold text-foreground">
                           {itemMargin ? `${itemMargin}%` : "-"}
                         </div>
                       </div>
@@ -1136,43 +1127,43 @@ export default function PurchasesPage() {
           </div>
 
           {/* PO SUMMARIES */}
-          <div className="bg-slate-50 dark:bg-zinc-900/50 p-4 rounded-xl border border-border-custom space-y-3">
-            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b border-border-custom pb-1.5">
+          <div className="bg-card p-4 rounded-xl border border-border shadow-xs space-y-3">
+            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b border-border/60 pb-1.5">
               PO Financial Summaries
             </h4>
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-500">Total Purchase Cost</label>
-                <div className="px-3 py-2 border border-border-custom rounded-xl bg-slate-100 dark:bg-zinc-800/80 text-sm font-bold text-slate-650">
+                <Label className="text-[11px] text-muted-foreground">Total Purchase Cost</Label>
+                <div className="px-3 py-2 border border-border rounded-lg bg-muted/40 text-sm font-bold text-foreground">
                   {formatRupiah(totalCost)}
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-500">Total DPP (Exc PPN)</label>
-                <div className="px-3 py-2 border border-border-custom rounded-xl bg-slate-100 dark:bg-zinc-800/80 text-sm font-semibold text-slate-650">
+                <Label className="text-[11px] text-muted-foreground">Total DPP (Exc PPN)</Label>
+                <div className="px-3 py-2 border border-border rounded-lg bg-muted/40 text-sm font-semibold text-foreground">
                   {formatRupiah(totalDPP)}
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Total Estimated Selling</label>
-                <div className="px-3 py-2 border border-border-custom rounded-xl bg-slate-100 dark:bg-zinc-800/80 text-sm font-bold text-foreground">
+                <Label className="text-[11px] font-bold text-foreground">Total Estimated Selling</Label>
+                <div className="px-3 py-2 border border-border rounded-lg bg-muted/40 text-sm font-bold text-foreground">
                   {formatRupiah(totalJual)}
                 </div>
               </div>
             </div>
 
             {totalJual > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border-custom pt-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border/60 pt-3">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-500">Estimated Profit Return (IDR)</label>
-                  <div className="px-3 py-2 border border-border-custom rounded-xl bg-slate-100 dark:bg-zinc-800/80 text-sm font-bold text-accent-green">
+                  <Label className="text-[11px] text-muted-foreground">Estimated Profit Return (IDR)</Label>
+                  <div className="px-3 py-2 border border-border rounded-lg bg-muted/40 text-sm font-bold text-accent-green">
                     {formatRupiah(totalProfit)}
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-500">Aggregated Margin Percent</label>
-                  <div className="px-3 py-2 border border-border-custom rounded-xl bg-slate-100 dark:bg-zinc-800/80 text-sm font-bold text-foreground">
+                  <Label className="text-[11px] text-muted-foreground">Aggregated Margin Percent</Label>
+                  <div className="px-3 py-2 border border-border rounded-lg bg-muted/40 text-sm font-bold text-foreground">
                     {totalMargin}% profit margin
                   </div>
                 </div>
@@ -1182,21 +1173,21 @@ export default function PurchasesPage() {
 
           {/* Modal Buttons */}
           <div className="pt-4 flex items-center justify-end gap-2 border-t border-border-custom">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setModalOpen(false)}
-              className="px-4 py-2 border border-border-custom hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={actionLoading || !!poLimitError}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-background rounded-xl text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm transition-colors"
+              className="flex items-center gap-1.5"
             >
               {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>{selectedPoNumber ? "Update PO" : "Register PO"}</span>
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
@@ -1347,16 +1338,15 @@ export default function PurchasesPage() {
 
           {/* Close action */}
           <div className="pt-4 flex items-center justify-end border-t border-border-custom">
-            <button
+            <Button
               type="button"
               onClick={() => {
                 setViewModalOpen(false);
                 setViewPoNo(null);
               }}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-background rounded-xl text-xs font-semibold cursor-pointer shadow-sm transition-colors"
             >
               Close Details
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
