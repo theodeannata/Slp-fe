@@ -679,16 +679,46 @@ export const api = {
       }),
   },
   bankStatements: {
+    getPeriods: async (): Promise<Array<{ period_month: string; count: number }>> => {
+      try {
+        return await fetchFromBackend("/api/v1/bank-statements/periods");
+      } catch (err) {
+        console.warn("Backend API gateway error for periods, falling back to Supabase client:", err);
+      }
+
+      // Direct Supabase JS Client fallback
+      if (supabase) {
+        try {
+          const { data: rpcData, error: rpcError } = await supabase.rpc("get_bank_pt_periods");
+          if (!rpcError && rpcData && Array.isArray(rpcData)) {
+            return rpcData;
+          }
+        } catch (e) {
+          console.warn("RPC fallback error:", e);
+        }
+
+        const { data, error } = await supabase.from("bank_pt").select("period_month");
+        if (!error && data) {
+          const counts: Record<string, number> = {};
+          for (const row of data) {
+            if (row.period_month) {
+              counts[row.period_month] = (counts[row.period_month] || 0) + 1;
+            }
+          }
+          return Object.keys(counts)
+            .sort((a, b) => b.localeCompare(a))
+            .map((p) => ({ period_month: p, count: counts[p] }));
+        }
+      }
+      return [];
+    },
     list: async (periodMonth?: string, account?: string) => {
       try {
-        let url = `${API_BASE_URL}/api/v1/bank-statements?limit=10000`;
-        if (periodMonth && periodMonth !== "ALL") url += `&period_month=${encodeURIComponent(periodMonth)}`;
-        if (account && account !== "ALL") url += `&account=${encodeURIComponent(account)}`;
+        let endpoint = `/api/v1/bank-statements?limit=10000`;
+        if (periodMonth && periodMonth !== "ALL") endpoint += `&period_month=${encodeURIComponent(periodMonth)}`;
+        if (account && account !== "ALL") endpoint += `&account=${encodeURIComponent(account)}`;
         
-        const res = await fetch(url);
-        if (res.ok) {
-          return await res.json();
-        }
+        return await fetchFromBackend(endpoint);
       } catch (err) {
         console.warn("Backend API gateway error, falling back to direct Supabase query:", err);
       }
