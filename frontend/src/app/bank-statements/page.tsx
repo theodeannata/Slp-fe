@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAppStore, BankStatement, Sale } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Modal } from "@/components/Modal";
@@ -8,6 +9,7 @@ import { useTranslation } from "@/lib/i18n";
 import { useForm } from "react-hook-form";
 import {
   CreditCard,
+  Lock,
   Plus,
   Upload,
   Save,
@@ -27,7 +29,9 @@ import {
   FileSpreadsheet,
   UploadCloud,
   Check,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,8 +40,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function BankStatementsPage() {
+  const router = useRouter();
   const { t, formatCurrency } = useTranslation();
-  const { isMockMode, sales } = useAppStore();
+  const { isMockMode, sales, role } = useAppStore();
+
+  useEffect(() => {
+    if (role === "admin") {
+      router.push("/");
+    }
+  }, [role, router]);
+
   const [data, setData] = useState<BankStatement[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +59,10 @@ export default function BankStatementsPage() {
   const [periodMonth, setPeriodMonth] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Period & Export States
+  const [availablePeriods, setAvailablePeriods] = useState<Array<{ period_month: string; count: number }>>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Modal States
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -66,7 +82,20 @@ export default function BankStatementsPage() {
 
   const { register, handleSubmit, reset } = useForm<Partial<BankStatement>>();
 
+  const loadPeriods = async () => {
+    if (role === "admin") return;
+    try {
+      const periods = await api.bankStatements.getPeriods();
+      if (periods && Array.isArray(periods)) {
+        setAvailablePeriods(periods);
+      }
+    } catch (err) {
+      console.warn("Could not load statement periods:", err);
+    }
+  };
+
   const loadData = async () => {
+    if (role === "admin") return;
     setIsLoading(true);
     setError(null);
     try {
@@ -80,6 +109,7 @@ export default function BankStatementsPage() {
   };
 
   const loadSales = async () => {
+    if (role === "admin") return;
     try {
       if (api.sales && api.sales.list) {
         const fetchedSales = await api.sales.list();
@@ -91,10 +121,116 @@ export default function BankStatementsPage() {
   };
 
   useEffect(() => {
+    if (role === "admin") return;
+    loadPeriods();
+  }, [role]);
+
+  useEffect(() => {
+    if (role === "admin") return;
     loadData();
     loadSales();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodMonth, isMockMode]);
+  }, [periodMonth, isMockMode, role]);
+
+  const formatPeriodLabel = (p: string) => {
+    if (p.includes("-")) {
+      const [year, month] = p.split("-");
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const mIdx = parseInt(month, 10) - 1;
+      const mName = monthNames[mIdx] || month;
+      return `BCAPT${month}${year.slice(2)} (${mName} ${year})`;
+    }
+    return p;
+  };
+
+  const getSheetName = (p: string) => {
+    if (p.includes("-")) {
+      const [year, month] = p.split("-");
+      return `BCAPT${month}${year.slice(2)}`;
+    }
+    return p.slice(0, 31).replace(/[:\\/?*\[\]]/g, "_");
+  };
+
+  const exportToExcel = async (exportAllMonths: boolean = false) => {
+    setIsExporting(true);
+    setError(null);
+    try {
+      let rowsToExport: BankStatement[] = [];
+      if (exportAllMonths || periodMonth === "ALL") {
+        if (periodMonth === "ALL" && data.length > 0) {
+          rowsToExport = data;
+        } else {
+          rowsToExport = await api.bankStatements.list("ALL");
+        }
+      } else {
+        rowsToExport = data;
+      }
+
+      if (!rowsToExport || rowsToExport.length === 0) {
+        setError("No statement records to download.");
+        return;
+      }
+
+      // Group rows by period_month
+      const grouped: Record<string, BankStatement[]> = {};
+      for (const r of rowsToExport) {
+        const pm = r.period_month || "Unknown";
+        if (!grouped[pm]) {
+          grouped[pm] = [];
+        }
+        grouped[pm].push(r);
+      }
+
+      const workbook = XLSX.utils.book_new();
+      const sortedPeriodKeys = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+      for (const pm of sortedPeriodKeys) {
+        const list = grouped[pm];
+        const sheetData = list.map((item) => ({
+          "Tanggal Terima": item.tanggal_terima || "",
+          "Tanggal": item.tanggal || "",
+          "Keterangan": item.keterangan || "",
+          "Masuk": item.masuk !== null && item.masuk !== undefined ? item.masuk : 0,
+          "Keluar": item.keluar !== null && item.keluar !== undefined ? item.keluar : 0,
+          "Account": item.account || "",
+          "Saldo": item.saldo !== null && item.saldo !== undefined ? item.saldo : 0,
+          "No. Invoice": item.no_invoice || "",
+          "Status": item.no_invoice ? "Lunas" : "Unmatched",
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(sheetData);
+        worksheet["!cols"] = [
+          { wch: 15 },
+          { wch: 14 },
+          { wch: 45 },
+          { wch: 18 },
+          { wch: 18 },
+          { wch: 12 },
+          { wch: 18 },
+          { wch: 22 },
+          { wch: 14 },
+        ];
+
+        const sheetName = getSheetName(pm);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      }
+
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const fileName =
+        exportAllMonths || periodMonth === "ALL"
+          ? `Rekening_Koran_All_Months_${timestamp}.xlsx`
+          : `Rekening_Koran_${periodMonth}_${timestamp}.xlsx`;
+
+      XLSX.writeFile(workbook, fileName);
+      setSuccess(`Downloaded ${rowsToExport.length} entries into Excel (${sortedPeriodKeys.length} sheet${sortedPeriodKeys.length > 1 ? 's' : ''})!`);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      console.error("Export error:", err);
+      setError(err.message || "Failed to download Excel file.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const formatRupiah = (num: number | null | undefined) => {
     if (num === null || num === undefined || isNaN(num)) return "-";
@@ -144,6 +280,7 @@ export default function BankStatementsPage() {
       setData((prev) => prev.filter((r) => r.id !== id));
       setSuccess("Record deleted successfully.");
       setTimeout(() => setSuccess(null), 3000);
+      loadPeriods();
     } catch (err: any) {
       setError(err.message || "Failed to delete record.");
     }
@@ -282,7 +419,13 @@ export default function BankStatementsPage() {
     setActionLoading(true);
     setError(null);
     try {
-      formData.period_month = periodMonth === "ALL" ? "2026-06" : periodMonth;
+      if (formData.tanggal && (!formData.period_month || formData.period_month === "ALL")) {
+        formData.period_month = formData.tanggal.slice(0, 7);
+      } else if (periodMonth !== "ALL") {
+        formData.period_month = periodMonth;
+      } else if (!formData.period_month) {
+        formData.period_month = availablePeriods[0]?.period_month || "2026-09";
+      }
       formData.masuk = formData.masuk ? Number(formData.masuk) : null;
       formData.keluar = formData.keluar ? Number(formData.keluar) : null;
 
@@ -291,6 +434,7 @@ export default function BankStatementsPage() {
       setAddModalOpen(false);
       reset();
       loadData();
+      loadPeriods();
     } catch (err: any) {
       setError(err.message || "Failed to create entry.");
     } finally {
@@ -304,7 +448,7 @@ export default function BankStatementsPage() {
     setActionLoading(true);
     setError(null);
     try {
-      const pMonth = periodMonth === "ALL" ? "2026-07" : periodMonth;
+      const pMonth = periodMonth === "ALL" ? (availablePeriods[0]?.period_month || "2026-09") : periodMonth;
       const res = await api.bankStatements.upload(uploadFile, pMonth, autoMatchOnUpload);
       if (autoMatchOnUpload) {
         setSuccess(`Uploaded ${res.length || 0} entries from ${uploadFile.name} & auto-matched sales invoices!`);
@@ -314,6 +458,7 @@ export default function BankStatementsPage() {
       setUploadModalOpen(false);
       setUploadFile(null);
       loadData();
+      loadPeriods();
     } catch (err: any) {
       setError(err.message || "Failed to upload bank statement file.");
     } finally {
@@ -347,6 +492,25 @@ export default function BankStatementsPage() {
   const totalOutflow = data.reduce((acc, r) => acc + (r.keluar || 0), 0);
   const latestSaldo = data.length > 0 ? data[data.length - 1].saldo || 0 : 0;
 
+  // Restricted view for Admin role
+  if (role === "admin") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-xl mx-auto text-center space-y-6">
+        <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-border-custom flex items-center justify-center text-foreground shadow-sm">
+          <Lock className="w-7 h-7" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold text-foreground">
+            Bank Statements Module Restricted
+          </h2>
+          <p className="text-slate-500 dark:text-slate-450 text-sm leading-relaxed">
+            Access to bank statements is protected under system security policies. Accounts with the <strong className="font-bold text-foreground">Admin</strong> role do not have permission to access Bank Statements.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Top Banner Header */}
@@ -367,31 +531,59 @@ export default function BankStatementsPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <select
             value={periodMonth}
             onChange={(e) => setPeriodMonth(e.target.value)}
             className="h-9 px-3 py-1 bg-background text-foreground border border-input rounded-md text-sm font-semibold shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
           >
-            <option value="ALL">All Statement Periods (1,462 Rows)</option>
-            <option value="2026-12">Period: 2026-12 (BCAPT1226)</option>
-            <option value="2026-11">Period: 2026-11 (BCAPT1126)</option>
-            <option value="2026-10">Period: 2026-10 (BCAPT1026)</option>
-            <option value="2026-09">Period: 2026-09 (BCAPT0926)</option>
-            <option value="2026-08">Period: 2026-08 (BCAPT0826)</option>
-            <option value="2026-07">Period: 2026-07 (BCAPT0726)</option>
-            <option value="2026-06">Period: 2026-06 (BCAPT0626)</option>
-            <option value="2026-05">Period: 2026-05 (BCAPT0526)</option>
-            <option value="2026-04">Period: 2026-04 (BCAPT0426)</option>
-            <option value="2026-03">Period: 2026-03 (BCAPT0326)</option>
-            <option value="2026-02">Period: 2026-02 (BCAPT0226)</option>
-            <option value="2026-01">Period: 2026-01 (BCAPT0126)</option>
-            <option value="2025-12">Period: 2025-12 (BCAPT1225)</option>
-            <option value="2025-11">Period: 2025-11 (BCAPT1125)</option>
-            <option value="2025-10">Period: 2025-10 (BCAPT1025)</option>
-            <option value="2025-09">Period: 2025-09 (BCAPT0925)</option>
-            <option value="2025-08">Period: 2025-08 (BCAPT0825)</option>
+            <option value="ALL">
+              All Statement Periods (
+              {availablePeriods.length > 0
+                ? `${availablePeriods.reduce((acc, p) => acc + p.count, 0).toLocaleString()} Rows`
+                : `${data.length} Rows`}
+              )
+            </option>
+            {availablePeriods.map((p) => (
+              <option key={p.period_month} value={p.period_month}>
+                Period: {p.period_month} ({formatPeriodLabel(p.period_month)}) ({p.count} rows)
+              </option>
+            ))}
           </select>
+
+          <Button
+            variant="outline"
+            onClick={() => exportToExcel(periodMonth === "ALL")}
+            disabled={isExporting || isLoading}
+            className="flex items-center gap-2 border-emerald-600/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-medium"
+            title={
+              periodMonth === "ALL"
+                ? "Download all monthly statements into Excel (one sheet per month)"
+                : `Download ${periodMonth} statement into Excel`
+            }
+          >
+            {isExporting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            <span>
+              {periodMonth === "ALL" ? "Export Excel (1 Sheet/Month)" : `Export Excel (${periodMonth})`}
+            </span>
+          </Button>
+
+          {periodMonth !== "ALL" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => exportToExcel(true)}
+              disabled={isExporting || isLoading}
+              className="text-xs text-muted-foreground hover:text-foreground h-9 px-2"
+              title="Download all monthly statements (1 sheet per month)"
+            >
+              Export All (1 Sheet/Mo)
+            </Button>
+          )}
 
           <Button
             onClick={handleAutoReconcile}
@@ -942,19 +1134,15 @@ export default function BankStatementsPage() {
           <div>
             <label className="block text-xs font-bold text-foreground mb-1.5">Target Statement Period</label>
             <select
-              value={periodMonth === "ALL" ? "2026-07" : periodMonth}
+              value={periodMonth === "ALL" ? (availablePeriods[0]?.period_month || "2026-09") : periodMonth}
               onChange={(e) => setPeriodMonth(e.target.value)}
               className="w-full px-3 py-2.5 bg-background border border-border rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary"
             >
-              <option value="2026-07">Period: 2026-07 (BCAPT0726 - July 2026)</option>
-              <option value="2026-08">Period: 2026-08 (BCAPT0826 - August 2026)</option>
-              <option value="2026-06">Period: 2026-06 (BCAPT0626 - June 2026)</option>
-              <option value="2026-05">Period: 2026-05 (BCAPT0526)</option>
-              <option value="2026-04">Period: 2026-04 (BCAPT0426)</option>
-              <option value="2026-03">Period: 2026-03 (BCAPT0326)</option>
-              <option value="2026-02">Period: 2026-02 (BCAPT0226)</option>
-              <option value="2026-01">Period: 2026-01 (BCAPT0126)</option>
-              <option value="2025-12">Period: 2025-12 (BCAPT1225)</option>
+              {availablePeriods.map((p) => (
+                <option key={p.period_month} value={p.period_month}>
+                  Period: {p.period_month} ({formatPeriodLabel(p.period_month)})
+                </option>
+              ))}
             </select>
           </div>
 

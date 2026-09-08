@@ -63,7 +63,7 @@ const navItems: NavItemDef[] = [
     key: "bankStatements",
     href: "/bank-statements",
     icon: CreditCard,
-    roles: ["admin", "master", "db_admin"],
+    roles: ["master", "db_admin"],
   },
   {
     key: "userManagement",
