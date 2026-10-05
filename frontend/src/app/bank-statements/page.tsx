@@ -61,7 +61,7 @@ export default function BankStatementsPage() {
   const [periodMonth, setPeriodMonth] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<"ALL" | "INFLOW" | "OUTFLOW">("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "MATCHED" | "UNMATCHED">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "MATCHED" | "SUGGESTED" | "UNMATCHED">("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Period & Export States
@@ -72,9 +72,10 @@ export default function BankStatementsPage() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [manualMatchModalOpen, setManualMatchModalOpen] = useState(false);
+  const [rememberPayer, setRememberPayer] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [autoMatchOnUpload, setAutoMatchOnUpload] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
 
   // Manual & Batch Assigning State
   const [selectedBankRowIds, setSelectedBankRowIds] = useState<string[]>([]);
@@ -296,8 +297,18 @@ export default function BankStatementsPage() {
     setError(null);
     try {
       const res = await api.bankStatements.autoReconcile(periodMonth);
-      setSuccess(`Automated matching complete! Matched ${res.matched_count || 0} invoices.`);
+      const matched = res.matched_count || 0;
+      const recognized = res.recognized_count || res.suggested_count || 0;
+      setSuccess(
+        `Auto-matching finished: ${matched} invoice(s) auto-matched & marked Lunas. ${
+          recognized > 0 ? `${recognized} payment(s) from known customers recognized for assignment.` : "All eligible matched!"
+        }`
+      );
+      if (recognized > 0) {
+        setStatusFilter("SUGGESTED");
+      }
       loadData();
+      loadSales();
     } catch (err: any) {
       setError(err.message || "Failed automated matching.");
     } finally {
@@ -305,19 +316,54 @@ export default function BankStatementsPage() {
     }
   };
 
+  // 1-Click Confirm Suggestion for Reviewer (fallback if single invoice suggestion is present)
+  const handleConfirmSuggestion = async (id: string, remember: boolean = false) => {
+    setActionLoading(true);
+    setError(null);
+    try {
+      const updated = await api.bankStatements.confirmSuggestion(id, remember);
+      setData((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? { ...r, ...updated, no_invoice: updated.no_invoice, suggested_invoice: null }
+            : r
+        )
+      );
+      setSuccess(
+        `Confirmed match for invoice ${updated.no_invoice}! Both sheets synchronized.${
+          remember ? " (Payer mapping registered for future statements)" : ""
+        }`
+      );
+      setTimeout(() => setSuccess(null), 3000);
+      loadSales();
+    } catch (err: any) {
+      setError(err.message || "Failed to confirm suggestion.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Open Multi-Payment / Multi-Invoice Assignment Modal
-  const openMatchModal = (bankRowsToMatch: BankStatement[]) => {
+  const openMatchModal = (bankRowsToMatch: BankStatement[], prefillCustomer?: string) => {
     setSelectedBankRows(bankRowsToMatch);
     setSelectedSales([]);
     setAllocationsMap({});
-    setSalesSearch("");
+    setRememberPayer(false);
 
-    // Auto search sales if memo contains 3-4 digit code in first selected row
-    if (bankRowsToMatch.length > 0 && bankRowsToMatch[0].keterangan) {
+    // If customer is known/passed, prefill customer query so open invoices show up immediately
+    if (prefillCustomer) {
+      setSalesSearch(prefillCustomer);
+    } else if (bankRowsToMatch.length > 0 && bankRowsToMatch[0].suggested_customer) {
+      setSalesSearch(bankRowsToMatch[0].suggested_customer);
+    } else if (bankRowsToMatch.length > 0 && bankRowsToMatch[0].keterangan) {
       const match = bankRowsToMatch[0].keterangan.match(/\b0?\d{3,4}\b/);
       if (match) {
         setSalesSearch(match[0]);
+      } else {
+        setSalesSearch("");
       }
+    } else {
+      setSalesSearch("");
     }
     setManualMatchModalOpen(true);
   };
@@ -395,8 +441,12 @@ export default function BankStatementsPage() {
         return;
       }
 
-      await api.bankStatements.batchMatch(payloadAllocations);
-      setSuccess(`Matched ${selectedBankRows.length} payment entry(ies) across ${selectedSales.length} sales invoice(s)!`);
+      await api.bankStatements.batchMatch(payloadAllocations, rememberPayer);
+      setSuccess(
+        `Matched ${selectedBankRows.length} payment entry(ies) across ${selectedSales.length} sales invoice(s)!${
+          rememberPayer ? " (Remembered payer mapping for future bank statements)" : ""
+        }`
+      );
       setManualMatchModalOpen(false);
       setSelectedBankRowIds([]);
       loadData();
@@ -446,23 +496,34 @@ export default function BankStatementsPage() {
     }
   };
 
-  const handleUploadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUpload = async (autoMatch: boolean) => {
     if (!uploadFile) return;
     setActionLoading(true);
     setError(null);
     try {
       const pMonth = periodMonth === "ALL" ? (availablePeriods[0]?.period_month || "2026-09") : periodMonth;
-      const res = await api.bankStatements.upload(uploadFile, pMonth, autoMatchOnUpload);
-      if (autoMatchOnUpload) {
-        setSuccess(`Uploaded ${res.length || 0} entries from ${uploadFile.name} & auto-matched sales invoices!`);
+      const res = await api.bankStatements.upload(uploadFile, pMonth, false);
+      const insertedCount = res?.length || 0;
+
+      if (autoMatch) {
+        const recRes = await api.bankStatements.autoReconcile(pMonth);
+        const matched = recRes.matched_count || 0;
+        const suggested = recRes.suggested_count || 0;
+        setSuccess(
+          `Uploaded ${uploadFile.name} (${insertedCount} rows). Reconciled: ${matched} auto-matched, ${suggested} flagged for review.`
+        );
+        if (suggested > 0) {
+          setStatusFilter("SUGGESTED");
+        }
       } else {
-        setSuccess(`Successfully ingested ${res.length || 0} statement entries from ${uploadFile.name} into Bank PT ledger!`);
+        setSuccess(`Uploaded ${insertedCount} entries from ${uploadFile.name} into Bank PT ledger.`);
       }
+
       setUploadModalOpen(false);
       setUploadFile(null);
       loadData();
       loadPeriods();
+      loadSales();
     } catch (err: any) {
       setError(err.message || "Failed to upload bank statement file.");
     } finally {
@@ -507,6 +568,22 @@ export default function BankStatementsPage() {
     return counts;
   }, [data]);
 
+  const suggestedCount = useMemo(() => {
+    return data.filter(
+      (r) => (!r.no_invoice || r.no_invoice.trim() === "") && !!(r.suggested_customer || r.suggested_invoice)
+    ).length;
+  }, [data]);
+
+  const matchedCount = useMemo(() => {
+    return data.filter((r) => r.no_invoice && r.no_invoice.trim() !== "").length;
+  }, [data]);
+
+  const unmatchedCount = useMemo(() => {
+    return data.filter(
+      (r) => (!r.no_invoice || r.no_invoice.trim() === "") && !r.suggested_customer && !r.suggested_invoice
+    ).length;
+  }, [data]);
+
   // Multi-dimensional filtered data
   const filteredData = useMemo(() => {
     return data.filter((row) => {
@@ -526,11 +603,14 @@ export default function BankStatementsPage() {
         return false;
       }
 
-      // 3. Status Filter (Matched with Invoice vs Unmatched)
+      // 3. Status Filter (Matched with Invoice vs Known Customer vs Unmatched)
       if (statusFilter === "MATCHED" && (!row.no_invoice || row.no_invoice.trim() === "")) {
         return false;
       }
-      if (statusFilter === "UNMATCHED" && row.no_invoice && row.no_invoice.trim() !== "") {
+      if (statusFilter === "SUGGESTED" && (row.no_invoice || (!row.suggested_customer && !row.suggested_invoice))) {
+        return false;
+      }
+      if (statusFilter === "UNMATCHED" && (row.no_invoice || row.suggested_customer || row.suggested_invoice)) {
         return false;
       }
 
@@ -570,15 +650,24 @@ export default function BankStatementsPage() {
     });
   }, [data, categoryFilter, typeFilter, statusFilter, searchQuery]);
 
-  const filteredSales = salesList.filter((s) => {
-    if (!salesSearch) return true;
-    const q = salesSearch.toLowerCase();
-    return (
-      (s.kode_unik && s.kode_unik.toLowerCase().includes(q)) ||
-      (s.no_sj_inv && s.no_sj_inv.toLowerCase().includes(q)) ||
-      (s.customer && s.customer.toLowerCase().includes(q))
-    );
-  });
+  const filteredSales = useMemo(() => {
+    let list = salesList;
+    if (salesSearch.trim()) {
+      const q = salesSearch.toLowerCase().trim();
+      list = list.filter((s) =>
+        (s.kode_unik && s.kode_unik.toLowerCase().includes(q)) ||
+        (s.no_sj_inv && s.no_sj_inv.toLowerCase().includes(q)) ||
+        (s.customer && s.customer.toLowerCase().includes(q))
+      );
+    }
+    // Show open unpaid invoices (sisa > 0) first, sorted chronologically
+    return [...list].sort((a, b) => {
+      const aUnpaid = (a.sisa || 0) > 0 ? 1 : 0;
+      const bUnpaid = (b.sisa || 0) > 0 ? 1 : 0;
+      if (aUnpaid !== bUnpaid) return bUnpaid - aUnpaid;
+      return (a.tgl || "").localeCompare(b.tgl || "");
+    });
+  }, [salesList, salesSearch]);
 
   // Overall and Filtered Totals for reactive KPI display
   const totalInflow = useMemo(() => data.reduce((acc, r) => acc + (r.masuk || 0), 0), [data]);
@@ -697,17 +786,25 @@ export default function BankStatementsPage() {
           <Button
             onClick={handleAutoReconcile}
             disabled={actionLoading}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-            title="Automate matching for all unmatched entries"
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm transition-all"
+            title="Automate matching for all unmatched entries against open sales invoices"
           >
-            {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 text-amber-300" />}
-            Auto Match All
+            {actionLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+            )}
+            <span>Auto Match</span>
+            {suggestedCount > 0 && (
+              <span className="px-1.5 py-0.2 text-[10px] bg-amber-400 text-amber-950 font-black rounded-full shadow-sm">
+                {suggestedCount} review
+              </span>
+            )}
           </Button>
 
           <Button
-            variant="outline"
             onClick={() => setUploadModalOpen(true)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
           >
             <Upload className="w-4 h-4" /> {t.bankStatements.uploadStatement}
           </Button>
@@ -939,19 +1036,33 @@ export default function BankStatementsPage() {
                 }`}
               >
                 <Check className="w-3 h-3" />
-                Matched (Lunas)
+                Matched ({matchedCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("SUGGESTED")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium transition-all ${
+                  statusFilter === "SUGGESTED"
+                    ? "bg-amber-500 text-white shadow-sm font-bold"
+                    : suggestedCount > 0
+                    ? "text-amber-500 font-bold hover:bg-amber-500/10"
+                    : "text-muted-foreground hover:bg-background/50"
+                }`}
+                title="Review payments recognized from known customers"
+              >
+                <AlertCircle className="w-3 h-3" />
+                Known Customer ({suggestedCount})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter("UNMATCHED")}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium transition-all ${
                   statusFilter === "UNMATCHED"
-                    ? "bg-amber-600 text-white shadow-sm font-semibold"
-                    : "text-amber-600 dark:text-amber-400 hover:bg-background/50"
+                    ? "bg-slate-700 dark:bg-slate-300 text-white dark:text-black shadow-sm font-semibold"
+                    : "text-muted-foreground hover:bg-background/50"
                 }`}
               >
-                <AlertCircle className="w-3 h-3" />
-                Unmatched
+                Unmatched ({unmatchedCount})
               </button>
             </div>
           </div>
@@ -1110,13 +1221,29 @@ export default function BankStatementsPage() {
                             <Unlink className="w-3.5 h-3.5" />
                           </button>
                         </div>
+                      ) : (row.suggested_customer || row.suggested_invoice) ? (
+                        <div className="flex flex-col gap-1.5 items-start">
+                          <span
+                            className="font-medium text-[11px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 max-w-[220px] truncate"
+                            title={`Recognized Customer: ${row.suggested_customer || row.suggested_invoice}`}
+                          >
+                            Cust: {row.suggested_customer || row.suggested_invoice}
+                          </span>
+                          <button
+                            onClick={() => openMatchModal([row], row.suggested_customer || undefined)}
+                            className="px-2.5 py-1 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+                            title="Filter open unpaid invoices for this recognized customer"
+                          >
+                            <LinkIcon className="w-3.5 h-3.5" /> Match Invoices
+                          </button>
+                        </div>
                       ) : row.masuk && row.masuk > 0 ? (
                         <button
                           onClick={() => openMatchModal([row])}
-                          className="p-1.5 text-emerald-600 hover:text-emerald-500 font-semibold flex items-center gap-1 transition-colors"
+                          className="px-2.5 py-1 text-xs font-semibold text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg flex items-center gap-1.5 transition-colors border border-emerald-500/20"
                           title="Assign to Sales Invoice(s)"
                         >
-                          <LinkIcon className="w-4 h-4" />
+                          <LinkIcon className="w-3.5 h-3.5" /> Assign
                         </button>
                       ) : (
                         <span className="text-muted-foreground text-xs">-</span>
@@ -1177,9 +1304,16 @@ export default function BankStatementsPage() {
           {/* Search & Multi-Select Invoices */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
-              <label className="block text-xs font-bold text-foreground">
-                Search & Select Target Invoices (`penjualan`)
-              </label>
+              <div className="flex items-center gap-2">
+                <label className="block text-xs font-bold text-foreground">
+                  Select Target Invoices (`penjualan`)
+                </label>
+                {salesSearch && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
+                    Filter: {salesSearch} ({filteredSales.length})
+                  </span>
+                )}
+              </div>
               {selectedSales.length > 0 && (
                 <button
                   type="button"
@@ -1291,6 +1425,25 @@ export default function BankStatementsPage() {
             </div>
           )}
 
+          {/* Explicit Remember Payer Option */}
+          {selectedBankRows.length > 0 && selectedSales.length > 0 && (
+            <div className="flex items-start gap-3 p-3 bg-muted/40 border border-border rounded-xl">
+              <input
+                type="checkbox"
+                id="rememberPayerCheck"
+                checked={rememberPayer}
+                onChange={(e) => setRememberPayer(e.target.checked)}
+                className="mt-0.5 w-4 h-4 text-primary rounded border-border focus:ring-primary cursor-pointer shrink-0"
+              />
+              <label htmlFor="rememberPayerCheck" className="text-xs font-semibold text-foreground cursor-pointer select-none">
+                Remember payer account for {selectedSales.length === 1 ? selectedSales[0].customer : "selected customer(s)"}
+                <span className="block text-[11px] text-muted-foreground font-normal mt-0.5">
+                  Explicitly maps the bank sender name so future statements from this payer automatically match this customer.
+                </span>
+              </label>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-3 border-t border-border">
             <button
               type="button"
@@ -1386,85 +1539,116 @@ export default function BankStatementsPage() {
       </Modal>
 
       {/* Upload Statement File Modal */}
-      <Modal isOpen={uploadModalOpen} onClose={() => setUploadModalOpen(false)} title="Upload E-Banking Statement (CSV / XLSX)">
-        <form onSubmit={handleUploadSubmit} className="space-y-5">
-          <div className="flex items-center gap-2 p-3 bg-muted/40 border border-border rounded-xl">
-            <FileText className="w-5 h-5 text-blue-500 shrink-0" />
-            <FileSpreadsheet className="w-5 h-5 text-emerald-500 shrink-0" />
-            <span className="text-xs text-muted-foreground">
-              Supports standard BCA KlikBCA CSV exports (`CorpAcctTrxn.csv`) & Bank PT Excel files (`BANKPT.xlsx`).
-            </span>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-foreground mb-1.5">Target Statement Period</label>
-            <select
-              value={periodMonth === "ALL" ? (availablePeriods[0]?.period_month || "2026-09") : periodMonth}
-              onChange={(e) => setPeriodMonth(e.target.value)}
-              className="w-full px-3 py-2.5 bg-background border border-border rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary"
-            >
-              {availablePeriods.map((p) => (
-                <option key={p.period_month} value={p.period_month}>
-                  Period: {p.period_month} ({formatPeriodLabel(p.period_month)})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-foreground mb-1.5">Select Statement File (.csv, .xlsx)</label>
+      <Modal
+        isOpen={uploadModalOpen}
+        onClose={() => {
+          setUploadModalOpen(false);
+          setUploadFile(null);
+          setIsDragging(false);
+        }}
+        title="Upload BCA Statement"
+      >
+        <div className="space-y-4">
+          {/* Drag & Drop File Zone */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) setUploadFile(file);
+            }}
+            onClick={() => document.getElementById("statement-file-input")?.click()}
+            className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2.5 ${
+              isDragging
+                ? "border-primary bg-primary/10"
+                : uploadFile
+                ? "border-emerald-500/50 bg-emerald-500/5"
+                : "border-border hover:border-primary/50 hover:bg-muted/30"
+            }`}
+          >
             <input
+              id="statement-file-input"
               type="file"
               accept=".csv, .xlsx, .xls"
-              required
               onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-              className="w-full p-2 bg-background border border-border rounded-xl text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white hover:file:bg-primary/90"
+              className="hidden"
             />
-            {uploadFile && (
-              <div className="mt-2 flex items-center justify-between px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg text-xs">
-                <span className="font-semibold text-foreground truncate">{uploadFile.name}</span>
-                <span className="px-2 py-0.5 bg-primary/20 text-primary font-bold rounded uppercase">
-                  {uploadFile.name.split('.').pop()}
-                </span>
+            {uploadFile ? (
+              <div className="flex items-center gap-3 w-full justify-between px-3.5 py-2.5 bg-background border border-border rounded-xl">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <div className="text-left truncate">
+                    <p className="text-xs font-bold text-foreground truncate">{uploadFile.name}</p>
+                    <p className="text-[11px] text-muted-foreground">{(uploadFile.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUploadFile(null);
+                  }}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
+            ) : (
+              <>
+                <div className="p-3 bg-primary/10 text-primary rounded-full">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-foreground">Click or drag & drop statement file</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Supports BCA KlikBCA CSV & Bank PT XLSX</p>
+                </div>
+              </>
             )}
           </div>
 
-          <div className="pt-2">
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoMatchOnUpload}
-                onChange={(e) => setAutoMatchOnUpload(e.target.checked)}
-                className="w-4 h-4 text-primary rounded border-border focus:ring-primary"
-              />
-              <span className="text-xs font-semibold text-foreground">
-                Automatically match open sales invoices upon upload
-              </span>
-            </label>
-            <p className="text-[11px] text-muted-foreground ml-6 mt-0.5">
-              Unchecked by default to allow pure statement ingestion without altering invoice balances.
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-border">
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
             <button
               type="button"
-              onClick={() => setUploadModalOpen(false)}
-              className="px-4 py-2 border border-border rounded-xl text-sm font-semibold hover:bg-muted"
+              onClick={() => {
+                setUploadModalOpen(false);
+                setUploadFile(null);
+                setIsDragging(false);
+              }}
+              className="px-4 py-2 border border-border rounded-xl text-xs font-semibold hover:bg-muted"
             >
               Cancel
             </button>
             <button
-              type="submit"
+              type="button"
               disabled={!uploadFile || actionLoading}
-              className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 disabled:opacity-50 shadow-md transition-colors"
+              onClick={() => handleUpload(false)}
+              className="px-4 py-2 border border-border bg-background hover:bg-muted text-foreground rounded-xl text-xs font-semibold disabled:opacity-50 transition-colors"
+              title="Upload file into ledger without matching invoices"
             >
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4 text-white" />}
-              Ingest Statement File
+              Upload Only
+            </button>
+            <button
+              type="button"
+              disabled={!uploadFile || actionLoading}
+              onClick={() => handleUpload(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 shadow-md transition-colors"
+              title="Upload file and run automatic reconciliation immediately"
+            >
+              {actionLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+              )}
+              Upload & Auto-Match
             </button>
           </div>
-        </form>
+        </div>
       </Modal>
     </div>
   );
