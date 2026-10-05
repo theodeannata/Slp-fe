@@ -753,23 +753,36 @@ export const api = {
       fetchFromBackend(`/api/v1/bank-statements/${id}`, {
         method: "DELETE",
       }),
-    match: (bankPtId: string, penjualanKodeUnik: string, allocatedAmount: number) =>
+    match: (bankPtId: string, penjualanKodeUnik: string, allocatedAmount: number, rememberPayer: boolean = false) =>
       fetchFromBackend("/api/v1/bank-statements/match", {
         method: "POST",
         body: JSON.stringify({
           bank_pt_id: bankPtId,
           penjualan_kode_unik: penjualanKodeUnik,
           allocated_amount: allocatedAmount,
+          remember_payer: rememberPayer,
         }),
       }),
-    batchMatch: (allocations: Array<{ bank_pt_id: string; penjualan_kode_unik: string; allocated_amount: number }>) =>
+    batchMatch: (
+      allocations: Array<{ bank_pt_id: string; penjualan_kode_unik: string; allocated_amount: number }>,
+      rememberPayer: boolean = false
+    ) =>
       fetchFromBackend("/api/v1/bank-statements/batch-match", {
         method: "POST",
-        body: JSON.stringify({ allocations }),
+        body: JSON.stringify({ allocations, remember_payer: rememberPayer }),
       }),
     unmatch: (bankPtId: string) =>
       fetchFromBackend(`/api/v1/bank-statements/unmatch/${bankPtId}`, {
         method: "POST",
+      }),
+    confirmSuggestion: (recordId: string, rememberPayer: boolean = false) =>
+      fetchFromBackend(`/api/v1/bank-statements/confirm-suggestion/${recordId}?remember_payer=${rememberPayer}`, {
+        method: "POST",
+      }),
+    rememberPayer: (payerName: string, customerName: string) =>
+      fetchFromBackend("/api/v1/bank-statements/remember-payer", {
+        method: "POST",
+        body: JSON.stringify({ payer_name: payerName, customer_name: customerName }),
       }),
     autoReconcile: (periodMonth?: string) => {
       let query = "";

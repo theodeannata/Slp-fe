@@ -108,6 +108,9 @@ export interface BankStatement {
   account?: string | null; // "AR" | "AP" | "Biaya" | "Biaya PS" | "CB" | "Komisi"
   saldo?: number | null;
   no_invoice?: string | null;
+  suggested_invoice?: string | null;
+  suggested_customer?: string | null;
+  confidence_score?: number | null;
   created_at?: string;
 }
 
