@@ -22,6 +22,7 @@ import {
   Printer,
   Truck,
   X,
+  Receipt,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const navItems: NavItemDef[] = [
   { key: "products", href: "/products", icon: ShoppingBag, roles: ["admin", "master", "db_admin"] },
   { key: "salesInvoices", href: "/sales", icon: FileText, roles: ["admin", "master", "db_admin"] },
   { key: "invoicingPrint", href: "/invoicing", icon: Printer, roles: ["admin", "master", "db_admin"] },
+  { key: "taxInvoices", href: "/tax-invoices", icon: Receipt, roles: ["admin", "master", "db_admin"] },
   {
     key: "purchasesPO",
     href: "/purchases",

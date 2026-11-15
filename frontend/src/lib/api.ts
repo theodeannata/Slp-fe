@@ -835,5 +835,54 @@ export const api = {
         body: JSON.stringify({ password }),
       }),
   },
+  taxInvoices: {
+    pendingSales: (params?: { year?: string; month?: number; npwp_only?: boolean }) => {
+      const qs = new URLSearchParams();
+      if (params?.year) qs.set("year", params.year);
+      if (params?.month) qs.set("month", String(params.month));
+      if (params?.npwp_only !== undefined) qs.set("npwp_only", String(params.npwp_only));
+      const query = qs.toString() ? `?${qs.toString()}` : "";
+      return fetchFromBackend(`/api/v1/tax-invoices/pending-sales${query}`);
+    },
+    tagCatatan: (no_sj_inv: string, catatan: string) =>
+      fetchFromBackend("/api/v1/tax-invoices/tag-catatan", {
+        method: "POST",
+        body: JSON.stringify({ no_sj_inv, catatan }),
+      }),
+    exportXlsx: async (payload: { invoice_numbers: string[] }): Promise<Blob> => {
+      let token = null;
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token;
+      }
+      const res = await fetch(`${API_BASE_URL}/api/v1/tax-invoices/export-xlsx`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text() || "Failed to export Coretax XLSX.");
+      return res.blob();
+    },
+    exportXml: async (payload: { invoice_numbers: string[] }): Promise<Blob> => {
+      let token = null;
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token;
+      }
+      const res = await fetch(`${API_BASE_URL}/api/v1/tax-invoices/export-xml`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text() || "Failed to export Coretax XML.");
+      return res.blob();
+    },
+  },
 };
 export default api;
