@@ -8,6 +8,7 @@ export interface TranslationSchema {
     products: string;
     salesInvoices: string;
     invoicingPrint: string;
+    taxInvoices: string;
     purchasesPO: string;
     goodsReceiveNotes: string;
     paymentsLedger: string;
@@ -73,6 +74,7 @@ export interface TranslationSchema {
     products: string;
     salesInvoices: string;
     invoicingPrint: string;
+    taxInvoices: string;
     purchasesPO: string;
     goodsReceiveNotes: string;
     paymentsLedger: string;
